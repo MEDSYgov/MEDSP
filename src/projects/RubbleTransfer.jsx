@@ -726,7 +726,7 @@ export function fromResponse(r, i) {
   return {
     id: `م-${i + 1}`, rid: r.id, p: Number(a.rt_phase) || 3, live: true,
     date: a.rt_date || String(r.submittedAt || '').slice(0, 10),
-    by: a.rt_collector || '', co: a.rt_contractor || 'غير محدد', nature: a.rt_nature || '',
+    by: a.rt_collector || '', co: r.entityName || a.rt_contractor_other || a.rt_contractor || 'غير محدد', nature: a.rt_nature || '',
     addr: a.rt_address || '', gov: code, area: a.rt_gov?.names?.district || a.rt_area || '',
     town: a.rt_gov?.names?.subdistrict || a.rt_town || '', village: a.rt_gov?.names?.community || a.rt_village || '',
     lat: Number(a.rt_point?.lat) || 0, lon: Number(a.rt_point?.lng) || 0,

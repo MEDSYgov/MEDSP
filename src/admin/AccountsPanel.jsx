@@ -12,13 +12,13 @@ const ROLE = { super_admin: 'المدير العام', admin: 'مدير المن
 const ROLE_HINT = {
   admin: 'يدير المشاريع والاستبيانات والبيانات والتقارير، دون إدارة الحسابات.',
   viewer: 'يشاهد الأرقام فقط. اترك الأقسام كلها لمشاهدة كاملة، أو اختر أقساماً محددة.',
-  reviewer: 'يشاهد الأقسام المحددة، ويراجع الاستبيانات المسندة إليه ويعتمد إجاباتها.',
+  reviewer: 'يشاهد الأقسام المحددة ويراجع الاستبيانات المسندة إليه. مع جهة: يؤكد إجابات جهته فقط. بلا جهة: يعتمد كل الإجابات.',
   collector: 'لا يرى الأرقام؛ يعبّئ الاستبيانات المسندة إليه فقط.',
 };
 const SECTIONS = [['ops', 'النظرة العامة والعمليات والخرائط'], ['monthly', 'التقرير الشهري'], ['rubble', 'إدارة الأنقاض'], ['projects', 'المشاريع']];
 
 /* الدور والنطاق: الأقسام، المحافظات، الاستبيانات المسندة */
-function AccessFields({ value, onChange, govs, surveys }) {
+function AccessFields({ value, onChange, govs, surveys, entities }) {
   const v = value;
   const set = (k, x) => onChange({ ...v, [k]: x });
   const showSections = v.role === 'viewer' || v.role === 'reviewer';
@@ -51,6 +51,15 @@ function AccessFields({ value, onChange, govs, surveys }) {
             options={govs.map((g) => ({ value: g.code, label: g.name }))} />
         </div>
       )}
+      {v.role === 'reviewer' && (
+        <label className="bf">
+          <span className="bf__label">الجهة <small>(مشرف جهة: يرى إجابات جهته فقط ويؤكدها، والاعتماد النهائي للوزارة)</small></span>
+          <select className="q-input bf__input" value={v.entity || ''} onChange={(e) => set('entity', e.target.value)}>
+            <option value="">بلا جهة — مراجع من الوزارة يعتمد كل الإجابات</option>
+            {entities.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+        </label>
+      )}
       {showSurveys && (
         <div className="bf">
           <span className="bf__label">الاستبيانات المسندة</span>
@@ -68,6 +77,7 @@ const scopeText = (acc, govs, surveys) => {
   if (acc.role !== 'collector') parts.push(acc.sections.length ? acc.sections.map((k) => SECTIONS.find((x) => x[0] === k)?.[1] || k).join('، ') : 'كل الأقسام');
   parts.push(acc.govs.length ? acc.govs.map((c) => govs.find((g) => g.code === c)?.name || c).join('، ') : 'كل المحافظات');
   if (acc.surveys.length) parts.push(`${acc.surveys.length} استبيان`);
+  if (acc.entityName) parts.push(`الجهة: ${acc.entityName}`);
   return parts.join(' · ');
 };
 
@@ -117,9 +127,11 @@ export default function AccountsPanel({ me }) {
   const [editing, setEditing] = useState(null);
   const [govs, setGovs] = useState([]);
   const [surveys, setSurveys] = useState([]);
+  const [entities, setEntities] = useState([]);
   useEffect(() => {
     getData('basemap').then((b) => setGovs([...b.governorates].sort((a, c) => a.name.localeCompare(c.name, 'ar')))).catch(() => {});
     store.listSurveyTitles().then(setSurveys).catch(() => {});
+    store.listEntities().then((l) => setEntities([...l].sort((a, b) => a.name.localeCompare(b.name, 'ar')))).catch(() => {});
   }, []);
   const [issued, setIssued] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -133,7 +145,7 @@ export default function AccountsPanel({ me }) {
 
   const openForm = () => {
     setForm({ username: '', displayName: '', password: generatePassword() });
-    setAccess({ role: 'viewer', sections: [], govs: [], surveys: [] });
+    setAccess({ role: 'viewer', sections: [], govs: [], surveys: [], entity: '' });
     setAdding(true);
     setError('');
   };
@@ -212,7 +224,7 @@ export default function AccountsPanel({ me }) {
             </div>
             <span className="bf__hint">مولّدة عشوائياً. يستطيع المشرف تغييرها بعد دخوله.</span>
           </label>
-          <AccessFields value={access} onChange={setAccess} govs={govs} surveys={surveys} />
+          <AccessFields value={access} onChange={setAccess} govs={govs} surveys={surveys} entities={entities} />
           <div className="pedit__save">
             <button type="button" className="survey__navbtn survey__navbtn--primary"
               onClick={create} disabled={busy || !form.username || form.password.length < 8}>
@@ -226,7 +238,7 @@ export default function AccountsPanel({ me }) {
       {editing && (
         <div className="accounts__form">
           <h3 className="acc__title">صلاحيات {editing.name}</h3>
-          <AccessFields value={editing} onChange={setEditing} govs={govs} surveys={surveys} />
+          <AccessFields value={editing} onChange={setEditing} govs={govs} surveys={surveys} entities={entities} />
           <div className="pedit__save">
             <button type="button" className="survey__navbtn survey__navbtn--primary" disabled={busy}
               onClick={async () => {
@@ -265,7 +277,7 @@ export default function AccountsPanel({ me }) {
                       {!isSuper && (
                         <span className="accounts__acts">
                           <button type="button" className="q-btn q-btn--sm"
-                            onClick={() => setEditing({ id: acc.id, name: acc.displayName, role: acc.role, sections: acc.sections, govs: acc.govs, surveys: acc.surveys })}>
+                            onClick={() => setEditing({ id: acc.id, name: acc.displayName, role: acc.role, sections: acc.sections, govs: acc.govs, surveys: acc.surveys, entity: acc.entity })}>
                             الصلاحيات
                           </button>
                           <button type="button" className="q-btn q-btn--sm" onClick={() => reset(acc)}>

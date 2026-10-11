@@ -123,27 +123,29 @@ export async function getMyRole() {
 /* ---------- الحسابات (للسوبر أدمن) ---------- */
 
 export async function listAccounts() {
-  const { data, error } = await supabase.rpc('list_accounts_v2');
+  const { data, error } = await supabase.rpc('list_accounts_v3');
   fail(error);
   return (data || []).map((r) => ({
     id: r.user_id, username: r.username, displayName: r.display_name, role: r.role,
-    sections: r.sections || [], govs: r.govs || [], surveys: r.surveys || [],
+    sections: r.sections || [], govs: r.govs || [], surveys: r.surveys || [], entity: r.entity || '', entityName: r.entity_name || '',
     createdAt: r.created_at, lastSignIn: r.last_sign_in_at,
   }));
 }
 
-export async function createAccount({ username, password, displayName, role = 'viewer', sections = [], govs = [], surveys = [] }) {
+export async function createAccount({ username, password, displayName, role = 'viewer', sections = [], govs = [], surveys = [], entity = '' }) {
   const { data, error } = await supabase.rpc('create_account', {
     p_username: username, p_password: password, p_display: displayName,
     p_role: role, p_sections: sections.length ? sections : null, p_govs: govs.length ? govs : null, p_surveys: surveys.length ? surveys : null,
+    p_entity: entity || null,
   });
   fail(error);
   return data;
 }
 
-export async function updateAccountAccess(id, { role, sections = [], govs = [], surveys = [] }) {
+export async function updateAccountAccess(id, { role, sections = [], govs = [], surveys = [], entity = '' }) {
   const { error } = await supabase.rpc('update_account_access', {
     p_user: id, p_role: role, p_sections: sections.length ? sections : null, p_govs: govs.length ? govs : null, p_surveys: surveys.length ? surveys : null,
+    p_entity: entity || null,
   });
   fail(error);
 }
@@ -339,6 +341,7 @@ export async function unlockSurvey(id, password) {
 
 export const RESPONSE_STATUS = {
   pending: 'بانتظار المراجعة',
+  confirmed: 'مؤكد من الجهة',
   approved: 'معتمد',
   rejected: 'مرفوض',
 };

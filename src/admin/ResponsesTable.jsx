@@ -76,7 +76,7 @@ function exportCsv(rows, questions, areas, filename) {
 const EDITABLE = new Set(['text', 'textarea', 'integer', 'decimal', 'range', 'date', 'time', 'datetime']);
 
 function ReviewDrawer({
-  response, questions, areas, position, total, onPrev, onNext, onClose, onReview, onEdit, onDelete,
+  response, questions, areas, position, total, onPrev, onNext, onClose, onReview, onEdit, onDelete, ok = 'approved', okLabel = 'اعتماد',
 }) {
   const [editing, setEditing] = useState(null);
   const [draft, setDraft] = useState('');
@@ -97,7 +97,7 @@ function ReviewDrawer({
       if (e.key === 'Escape') onClose();
       else if (e.key === 'ArrowLeft') onNext();
       else if (e.key === 'ArrowRight') onPrev();
-      else if (e.key.toLowerCase() === 'a' && response.status !== 'approved') act(() => onReview(response.id, 'approved'));
+      else if (e.key.toLowerCase() === 'a' && response.status !== ok) act(() => onReview(response.id, ok));
       else if (e.key.toLowerCase() === 'r' && response.status !== 'rejected') act(() => onReview(response.id, 'rejected'));
     };
     window.addEventListener('keydown', onKey);
@@ -208,7 +208,7 @@ function ReviewDrawer({
                 {response.history.map((h, i) => (
                   <li key={i}>
                     <span>{new Date(h.at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</span>
-                    {' '}{({ submitted: 'أُرسلت', approved: 'اعتُمدت', rejected: 'رُفضت', edited: 'عُدّلت' })[h.action] || h.action}
+                    {' '}{({ submitted: 'أُرسلت', confirmed: 'أكّدتها الجهة', approved: 'اعتُمدت', rejected: 'رُفضت', edited: 'عُدّلت' })[h.action] || h.action}
                     {h.by ? ` بواسطة ${h.by}` : ''}
                     {h.field ? `: ${questions.find((q) => q.name === h.field)?.label || h.field}` : ''}
                   </li>
@@ -219,9 +219,9 @@ function ReviewDrawer({
         </div>
 
         <footer className="drawer__foot">
-          <button type="button" className="rv rv--ok" disabled={busy || response.status === 'approved'}
-            onClick={() => act(() => onReview(response.id, 'approved'))}>
-            <Icon name="check" />اعتماد<kbd>A</kbd>
+          <button type="button" className="rv rv--ok" disabled={busy || response.status === ok || response.status === 'approved'}
+            onClick={() => act(() => onReview(response.id, ok))}>
+            <Icon name="check" />{okLabel}<kbd>A</kbd>
           </button>
           <button type="button" className="rv rv--no" disabled={busy || response.status === 'rejected'}
             onClick={() => act(() => onReview(response.id, 'rejected'))}>
@@ -243,14 +243,18 @@ function ReviewDrawer({
 
 const FILTERS = [
   { key: 'pending', label: 'بانتظار المراجعة' },
+  { key: 'confirmed', label: 'مؤكدة من الجهة' },
   { key: 'approved', label: 'معتمدة' },
   { key: 'rejected', label: 'مرفوضة' },
   { key: 'all', label: 'الكل' },
 ];
 
 export default function ResponsesTable({
-  responses, survey, areas, onReview, onEdit, onDelete, onBulk,
+  responses, survey, areas, onReview, onEdit, onDelete, onBulk, entityReviewer = false,
 }) {
+  /* مشرف الجهة «يؤكد»، والوزارة «تعتمد» */
+  const ok = entityReviewer ? 'confirmed' : 'approved';
+  const okLabel = entityReviewer ? 'تأكيد الجهة' : 'اعتماد';
   const [filter, setFilter] = useState('pending');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(new Set());
@@ -268,6 +272,7 @@ export default function ResponsesTable({
     all: responses.length,
     pending: responses.filter((r) => r.status === 'pending').length,
     approved: responses.filter((r) => r.status === 'approved').length,
+    confirmed: responses.filter((r) => r.status === 'confirmed').length,
     rejected: responses.filter((r) => r.status === 'rejected').length,
   }), [responses]);
 
@@ -344,7 +349,7 @@ export default function ResponsesTable({
         {selected.size > 0 ? (
           <div className="rbar__bulk">
             <span>{fmt(selected.size)} محدّدة</span>
-            <button type="button" className="rv rv--ok rv--sm" onClick={() => runBulk('approved')}>اعتماد</button>
+            <button type="button" className="rv rv--ok rv--sm" onClick={() => runBulk(ok)}>{okLabel}</button>
             <button type="button" className="rv rv--no rv--sm" onClick={() => runBulk('rejected')}>رفض</button>
             <button type="button" className="q-btn q-btn--sm" onClick={() => setSelected(new Set())}>إلغاء</button>
           </div>
@@ -442,6 +447,8 @@ export default function ResponsesTable({
           onNext={() => go(1)}
           onClose={() => setOpenId(null)}
           onReview={review}
+          ok={ok}
+          okLabel={okLabel}
           onEdit={onEdit}
           onDelete={async (id) => { await onDelete(id); setOpenId(null); }}
         />

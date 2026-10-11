@@ -80,6 +80,15 @@ function RangeField({ node, value, onChange }) {
 /* ---------------- اختيارات ---------------- */
 
 function SelectOne({ node, value, onChange }) {
+  /* قائمة منسدلة للقوائم الطويلة (مثل سجل الجهات) */
+  if (node.appearance === 'dropdown') {
+    return (
+      <select className="q-input q-input--select" value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
+        <option value="">اختر من القائمة</option>
+        {node.choices.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+      </select>
+    );
+  }
   const columns = node.appearance === 'columns' && node.choices.length > 4;
   return (
     <div className={`q-choices${columns ? ' q-choices--cols' : ''}`} role="radiogroup">

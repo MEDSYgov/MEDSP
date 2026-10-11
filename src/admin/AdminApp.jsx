@@ -169,7 +169,7 @@ function ProjectList({ projects, counts, onOpen, onCreate, onDelete }) {
 
 /* ---------------- محرر المشروع ---------------- */
 
-function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'build', reviewer = false }) {
+function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'build', reviewer = false, entityReviewer = false }) {
   const areas = useAreas(basemap);
   const [project, setProject] = useState(null);
   const [surveys, setSurveys] = useState([]);
@@ -294,7 +294,7 @@ function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'bu
 
   const isData = project.kind === 'data';
   const linked = linkedFeed(surveys);
-  const pending = isData ? 0 : responses.filter((r) => r.status === 'pending').length;
+  const pending = isData ? 0 : responses.filter((r) => r.status === 'pending' || r.status === 'confirmed').length;
 
   return (
     <div className="pedit">
@@ -444,6 +444,7 @@ function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'bu
               onEdit={async (id, field, value) => { await store.editResponseAnswer(id, field, value); refreshResponses(); }}
               onDelete={async (id) => { await store.deleteResponse(id); refreshResponses(); }}
               onBulk={async (ids, status) => { await store.bulkReview(ids, status); refreshResponses(); }}
+              entityReviewer={entityReviewer}
             />
           )}
 
@@ -529,7 +530,7 @@ export default function AdminApp({ basemap, me }) {
       map[p.id] = {
         surveys: ids.size,
         linked: linkedFeed(surveys.filter((s) => s.projectId === p.id)),
-        pending: rows.filter((r) => r.status === 'pending').length,
+        pending: rows.filter((r) => r.status === 'pending' || r.status === 'confirmed').length,
         approved: rows.filter((r) => r.status === 'approved').length,
       };
     }
@@ -570,6 +571,7 @@ export default function AdminApp({ basemap, me }) {
           basemap={basemap}
           initialTab={startTab}
           reviewer={reviewer}
+          entityReviewer={reviewer && Boolean(me.entity)}
           onBack={() => { setOpen(null); setStartTab('build'); refresh(); }}
           onChanged={refresh}
         />
