@@ -36,6 +36,16 @@ const PUBLIC_FILES = new Set(['admin-areas.json', 'basemap.json']);
 if (fs.existsSync(outDir)) {
   for (const f of fs.readdirSync(outDir)) if (f.endsWith('.json') && !PUBLIC_FILES.has(f)) fs.rmSync(path.join(outDir, f));
 }
+/* حزم الخرائط الجاهزة (مصدّرة من QGIS) تُنسخ إلى البوابة ولا تُنشر كملفات عامة */
+function copyMaps() {
+  const dir = path.join(dataDir, 'maps');
+  if (!fs.existsSync(dir)) return;
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.json'))) {
+    fs.mkdirSync(privDir, { recursive: true });
+    fs.copyFileSync(path.join(dir, f), path.join(privDir, f));
+    console.log(`  ✓ ${f} (حزمة خريطة)`);
+  }
+}
 const outPath = (name) => {
   fs.mkdirSync(PUBLIC_FILES.has(name) ? outDir : privDir, { recursive: true });
   return path.join(PUBLIC_FILES.has(name) ? outDir : privDir, name);
@@ -71,6 +81,7 @@ function loadPlaces() {
       governorate: clean(row.adm1_ar),
       district: clean(row.adm2_ar),
       subdistrict: clean(row.adm3_ar),
+      p1: clean(row.adm1_pcode), p2: clean(row.adm2_pcode), p3: clean(row.adm3_pcode),
     });
   }
 
@@ -625,7 +636,49 @@ function run() {
     write(`${id}.json`, buildReport(rows, places, config));
   }
 
+  write('ops-map.json', buildOpsMap(rows, places, period));
+
   console.log(`\nالفترة: ${period} — ${rows.length} سجلاً بعد إزالة التكرار`);
+}
+
+/*
+  خريطة العمليات (تبويب الخرائط): تجميع كل السجلات حسب التجمع (ترميز المنطقة) × نوع العملية × الشهر.
+  السجل: [فهرس التجمع, فهرس النوع, فهرس الشهر, العدد, المصابون, الوفيات, مجموع زمن الوصول, عدد قيم زمن الوصول]
+  التجمع: [الاسم, خط العرض, خط الطول, رمز المحافظة, رمز المنطقة, رمز الناحية, المحافظة, المنطقة, الناحية]
+*/
+function buildOpsMap(rows, places, period) {
+  const types = OPERATION_TYPES;
+  const tIx = new Map(types.map((t, i) => [t, i]));
+  const pIx = new Map(); const plist = [];
+  const mIx = new Map(); const months = [];
+  const cells = new Map();
+  let unlocated = 0;
+  const people = (r, k) => num(r[`عدد ${k} الأطفال`]) + num(r[`عدد ${k} الرجال`]) + num(r[`عدد ${k} النساء`]);
+  for (const r of rows) {
+    const t = tIx.get(clean(r['اسم العملية']));
+    if (t === undefined) continue;
+    const code = clean(r['ترميز المنطقة']);
+    const pl = places.get(code);
+    if (!pl || !pl.lat || !pl.lon) { unlocated += 1; continue; }
+    const d = r['التاريخ'] instanceof Date ? r['التاريخ'] : new Date(r['التاريخ']);
+    if (Number.isNaN(d.getTime())) continue;
+    const t12 = new Date(d.getTime() + 12 * 3600e3);
+    const m = `${t12.getUTCFullYear()}-${String(t12.getUTCMonth() + 1).padStart(2, '0')}`;
+    if (!pIx.has(code)) { pIx.set(code, plist.length); plist.push([pl.name, +pl.lat.toFixed(5), +pl.lon.toFixed(5), pl.p1, pl.p2, pl.p3, pl.governorate, pl.district, pl.subdistrict]); }
+    if (!mIx.has(m)) { mIx.set(m, months.length); months.push(m); }
+    const key = `${pIx.get(code)}|${t}|${m}`;
+    const c = cells.get(key) || [pIx.get(code), t, mIx.get(m), 0, 0, 0, 0, 0];
+    c[3] += 1; c[4] += people(r, 'المصابين'); c[5] += people(r, 'الشهداء');
+    const arr = num(r['زمن الوصول للموقع بالدقائق']);
+    if (arr > 0 && arr <= 240) { c[6] += arr; c[7] += 1; }
+    cells.set(key, c);
+  }
+  /* الأشهر بترتيب زمني، وتُعاد فهرسة السجلات عليها */
+  const sorted = [...months].sort();
+  const remap = months.map((m) => sorted.indexOf(m));
+  const out = [...cells.values()].map((c) => { c[2] = remap[c[2]]; return c; });
+  console.log(`  خريطة العمليات: ${plist.length} تجمعاً، ${unlocated} سجلاً بلا موقع`);
+  return { period, generatedAt: new Date().toISOString().slice(0, 10), types, months: sorted, places: plist, rows: out, unlocated };
 }
 
 function write(name, payload) {
@@ -857,3 +910,4 @@ buildRubble();
 buildPipeline();
 buildRegistry();
 buildDamage();
+copyMaps();

@@ -2967,3 +2967,86 @@ button.rx-cell:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(
 .masthead__name{font-size:.9rem;opacity:.85}
 button.masthead__login{font:inherit;cursor:pointer}
 @media (max-width:640px){.masthead__name{display:none}}
+
+/* ===== الخرائط: مبدّل الخرائط + خريطة العمليات (OpsMapView) ===== */
+.maps-switch{display:flex;gap:8px;margin:4px 0 18px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+.maps-switch a{flex-shrink:0;padding:8px 16px;border-radius:999px;border:1px solid var(--edge-strong);color:var(--ink);text-decoration:none;font-weight:700;font-size:.92rem;white-space:nowrap}
+.maps-switch a.is-on{background:var(--forest);border-color:var(--forest);color:var(--ivory-mist)}
+.omap{display:flex;flex-direction:column;gap:12px}
+.omap-filters{display:flex;flex-wrap:nowrap;gap:8px;align-items:flex-end;position:relative;z-index:5}
+.omap-filters>*{flex:1;min-width:0}
+.omap-chips{display:flex;flex-wrap:wrap;gap:8px}
+.omap-chips button{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--edge-strong);background:var(--glass);color:var(--ink);border-radius:999px;
+  padding:7px 14px;font:inherit;font-size:.9rem;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s}
+.omap-chips button span{display:inline-grid}
+.omap-chips button small{font-weight:500;color:var(--ink-faint);font-size:.76rem}
+.omap-chips button:hover{border-color:var(--c,var(--golden-wheat))}
+.omap-chips button.is-on{background:color-mix(in srgb,var(--c,var(--forest)) 22%,transparent);border-color:var(--c,var(--golden-wheat))}
+.omap-chips button:first-child.is-on{background:var(--forest);border-color:var(--forest);color:var(--ivory-mist)}
+.omap-body{display:grid;grid-template-columns:1fr 300px;gap:14px}
+.omap-canvas{position:relative;isolation:isolate;z-index:0;border-radius:var(--radius);overflow:hidden;border:1px solid var(--edge-strong);min-height:680px;background:#0b1f1c}
+.omap-map{position:absolute;inset:0;background:#0b1f1c;font-family:inherit}
+.omap .leaflet-container{background:#0b1f1c}
+.omap-relief{mix-blend-mode:overlay}
+.omap-gov{filter:drop-shadow(0 0 3px rgba(185,167,121,.55))}
+.omap-loading,.omap-hint{position:absolute;z-index:500;left:50%;transform:translateX(-50%);background:rgba(2,68,58,.9);color:#ebe8d7;border:1px solid rgba(185,167,121,.4);
+  border-radius:999px;padding:6px 14px;font-size:.82rem;pointer-events:none;white-space:nowrap}
+.omap-loading{top:50%}
+.omap-hint{bottom:14px}
+.omap-ico{background:none;border:0}
+.omap-ico svg{display:block;filter:drop-shadow(0 0 4px currentColor) drop-shadow(0 1px 1px rgba(0,0,0,.6));opacity:.93}
+.omap-label{white-space:nowrap}
+.omap-label span{display:inline-flex;flex-direction:column;align-items:center;transform:translate(-50%,-50%);font-weight:800;font-size:13px;color:#ebe8d7;line-height:1.2;
+  text-shadow:0 0 4px #0b1f1c,0 0 4px #0b1f1c,0 0 8px #0b1f1c}
+.omap-label small{font-size:12px;font-weight:700;color:#e9cf8f}
+.omap-label--sub span{font-size:10.5px;font-weight:500;color:rgba(235,232,215,.7)}
+.omap-side{display:flex;flex-direction:column;gap:14px}
+.omap-box{background:var(--glass);border:1px solid var(--edge);border-radius:var(--radius);padding:14px 16px}
+.omap-box h4{margin:0 0 8px;font-size:1rem;color:var(--accent-text)}
+.omap-box p{margin:10px 0 6px;font-size:.82rem;font-weight:700;color:var(--ink)}
+.omap-box p em{font-style:normal;font-weight:400;color:var(--ink-faint);font-size:.74rem}
+.omap-ramp{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:.78rem;color:var(--ink-soft)}
+.omap-ramp li{display:flex;align-items:center;gap:6px}
+.omap-ramp i{width:16px;height:12px;border-radius:3px;flex-shrink:0;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
+.omap-types{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.omap-types button{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;color:var(--ink);font:inherit;font-size:.84rem;
+  padding:5px 6px;border-radius:var(--radius-sm);cursor:pointer;text-align:right}
+.omap-types button:hover{background:var(--glass-strong)}
+.omap-types button:not(.is-on){opacity:.38}
+.omap-types button>span:first-child{width:22px;display:grid;place-items:center;flex-shrink:0}
+.omap-types__t{display:flex;flex-direction:column;line-height:1.35}
+.omap-types__t small{font-size:.7rem;color:var(--ink-faint)}
+.omap-kpi__big{display:block;font-size:2.1rem;font-weight:800;color:var(--ink);line-height:1.1}
+.omap-kpi__sub{display:block;font-size:.78rem;color:var(--ink-soft);margin-top:2px}
+.omap-kpi__grid{list-style:none;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.omap-kpi__grid li{background:var(--glass-strong);border-radius:var(--radius-sm);padding:7px 8px;display:flex;flex-direction:column;gap:2px}
+.omap-kpi__grid span{font-size:.7rem;color:var(--ink-soft)}
+.omap-kpi__grid b{font-size:1rem;color:var(--ink)}
+.omap-kpi__grid .is-red{color:#e8606f}
+.omap-kpi__grid .is-teal{color:#3ec6c2}
+.omap-bars{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:7px}
+.omap-bars li{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:.8rem;color:var(--ink)}
+.omap-bars li.is-off{opacity:.35}
+.omap-bars i{grid-column:1/-1;height:5px;border-radius:99px;background:var(--surface-track);overflow:hidden;display:flex}
+.omap-bars em{display:block;height:100%;border-radius:99px;margin-inline-start:0}
+.omap-src{margin:0;font-size:.74rem;color:var(--ink-faint)}
+.omap-err{padding:20px;border:1px dashed var(--edge-strong);border-radius:var(--radius);color:var(--ink-soft)}
+.omap-pop{direction:rtl;font-family:inherit;min-width:230px}
+.omap .leaflet-popup-content-wrapper{border-radius:10px;padding:0;overflow:hidden;background:#fbfaf4}
+.omap .leaflet-popup-content{margin:0}
+.omap-pop header{background:#02443a;color:#ebe8d7;padding:8px 12px}
+.omap-pop header b{display:block;font-size:.95rem}
+.omap-pop header small{display:block;color:#b9a779;font-size:.75rem;margin-top:2px}
+.omap-pop table{margin:6px 10px 10px;border-collapse:collapse;font-size:.8rem;color:#161616}
+.omap-pop th{text-align:right;font-weight:500;color:#6b5d3f;padding:3px 0 3px 12px;white-space:nowrap}
+.omap-pop th i{font-style:normal}
+.omap-pop td{font-weight:700}
+@media (max-width:900px){
+  .omap-body{grid-template-columns:1fr}
+  .omap-canvas{min-height:470px}
+  .omap-filters{overflow-x:auto;scrollbar-width:none;margin-inline:-16px;padding-inline:16px}
+  .omap-filters>*{flex:0 0 132px}
+  .omap-chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-inline:-16px;padding-inline:16px}
+  .omap-chips button{flex-shrink:0;white-space:nowrap}
+  .omap-hint{white-space:normal;width:86%;text-align:center;font-size:.74rem}
+}

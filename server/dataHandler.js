@@ -17,7 +17,8 @@ const OPS = ['overview', 'summary', 'fire', 'ambulance', 'traffic', 'drowning', 
 const SECTIONS = Object.fromEntries([
   ...OPS.map((f) => [f, ['ops', 'monthly']]),
   ['services', ['ops', 'monthly', 'rubble']],
-  ...['rubble-transfer', 'rubble-pipeline', 'rubble-registry', 'rubble-damage', 'rubble-assessment'].map((f) => [f, ['rubble']]),
+  ...['rubble-transfer', 'rubble-pipeline', 'rubble-registry', 'rubble-damage', 'rubble-assessment', 'rubble-map'].map((f) => [f, ['rubble']]),
+  ['ops-map', ['ops']],
 ]);
 
 const norm = (s) => String(s ?? '').replace(/[إأآ]/g, 'ا').replace(/ة\s*$/, 'ه').replace(/\s+/g, ' ').trim();
@@ -51,6 +52,20 @@ function scope(name, data, allowed) {
     const counts = new Map();
     for (const r of ov.records) { const l = op?.values[r[at]]; if (l) counts.set(l, (counts.get(l) || 0) + 1); }
     return { ...data, totalRecords: ov.records.length, byOperation: data.byOperation.map((o) => ({ ...o, value: counts.get(o.label) || 0 })) };
+  }
+  if (name === 'ops-map') {
+    /* التجمعات خارج محافظات الحساب تُحذف، وتُعاد فهرسة السجلات */
+    const map = new Map(); const places = [];
+    data.places.forEach((p, i) => { if (ok(p[6])) { map.set(i, places.length); places.push(p); } });
+    const rows = data.rows.filter((r) => map.has(r[0])).map((r) => [map.get(r[0]), ...r.slice(1)]);
+    return { ...data, places, rows };
+  }
+  if (name === 'rubble-map') {
+    const fc = (g, key = 'adm1_name1') => ({ ...g, features: g.features.filter((f) => ok(f.properties[key])) });
+    const govCodes = new Set(data.governorates.features.filter((f) => ok(f.properties.adm1_name1)).map((f) => f.properties.adm1_pcode));
+    const byCode = (g) => ({ ...g, features: g.features.filter((f) => govCodes.has(f.properties.adm1_pcode)) });
+    return { ...data, governorates: fc(data.governorates), districts: byCode(data.districts), subdistricts: byCode(data.subdistricts),
+      sites: byCode(data.sites), dumps: byCode(data.dumps), machinery: byCode(data.machinery), flows: data.flows.filter((r) => ok(r[6])) };
   }
   if (name === 'rubble-transfer') return { ...data, surveys: data.surveys.filter((s) => ok(s.gov)), phases: (data.phases || []).filter((r) => ok(r.gov)) };
   if (name === 'rubble-assessment') return { ...data, sites: data.sites.filter((s) => ok(s.gov)) };

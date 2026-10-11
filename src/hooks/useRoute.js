@@ -19,7 +19,8 @@ export function parseRoute(hash) {
   let m;
   if ((m = path.match(/^\/s\/([\w-]+)/))) return { page: 'fill', id: m[1] };
   if (path.startsWith('/admin')) return { page: 'admin' };
-  if (path.startsWith('/maps')) return { page: 'maps' };
+  if (path.startsWith('/maps/risk')) return { page: 'maps', tab: 'risk' };
+  if (path.startsWith('/maps')) return { page: 'maps', tab: 'ops' };
   if (path.startsWith('/monthly')) return { page: 'monthly' };
   if (path.startsWith('/rubble-map')) return { page: 'rubble', tab: 'atlas' };
   if (path.startsWith('/rubble/map')) return { page: 'rubble', tab: 'map' };
@@ -36,6 +37,7 @@ export const href = {
   ops: (id) => `#/ops/${id}`,
   projects: () => '#/projects',
   maps: () => '#/maps',
+  mapsRisk: () => '#/maps/risk',
   monthly: () => '#/monthly',
   rubble: () => '#/rubble',
   atlas: () => '#/rubble-map',

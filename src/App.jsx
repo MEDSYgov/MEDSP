@@ -17,6 +17,7 @@ import AdminApp from './admin/AdminApp';
 import FillPage from './projects/FillPage';
 import AuthGate from './admin/AuthGate';
 import MapsPage from './components/MapsPage';
+import OpsMapView from './components/OpsMapView';
 import MonthlyReport from './components/MonthlyReport';
 import RubbleHub from './projects/RubbleHub';
 
@@ -156,7 +157,7 @@ function Platform({ me, signOut, theme, toggleTheme, route }) {
     else if (route.page === 'admin') page = 'مساحة العمل';
     else if (route.page === 'monthly') page = 'التقرير الشهري';
     else if (route.page === 'rubble') page = 'إدارة الأنقاض';
-    else if (route.page === 'maps') page = 'خريطة الأخطار المتعددة';
+    else if (route.page === 'maps') page = route.tab === 'risk' ? 'خريطة الأخطار المتعددة' : 'خريطة العمليات';
     document.title = page ? `${page} — ${site}` : `${site} — وزارة الطوارئ وإدارة الكوارث`;
   }, [route, active.name, currentProject, unknownOp]);
 
@@ -212,9 +213,23 @@ function Platform({ me, signOut, theme, toggleTheme, route }) {
 
         {allowedHere && route.page === 'maps' && (
           <section className="shell">
-            <div className="report__head"><h1>خريطة الأخطار المتعددة</h1></div>
-            <p className="report__summary">مؤشرات الخطر الزلزالي وقابلية الفيضان والخطر المركّب على مستوى النواحي، بتحليل هرمي (AHP).</p>
-            <MapsPage />
+            <nav className="maps-switch" aria-label="الخرائط">
+              <a href="#/maps" className={route.tab !== 'risk' ? 'is-on' : ''}>خريطة العمليات</a>
+              <a href="#/maps/risk" className={route.tab === 'risk' ? 'is-on' : ''}>خريطة الأخطار المتعددة</a>
+            </nav>
+            {route.tab === 'risk' ? (
+              <>
+                <div className="report__head"><h1>خريطة الأخطار المتعددة</h1></div>
+                <p className="report__summary">مؤشرات الخطر الزلزالي وقابلية الفيضان والخطر المركّب على مستوى النواحي، بتحليل هرمي (AHP).</p>
+                <MapsPage />
+              </>
+            ) : (
+              <>
+                <div className="report__head"><h1>خريطة العمليات</h1></div>
+                <p className="report__summary">عمليات الدفاع المدني في كل تجمع سكاني: الإسعاف والإطفاء وحوادث السير والإنقاذ البارد والغرق وغيرها، مع فرز حسب النوع والزمن والمكان.</p>
+                <OpsMapView />
+              </>
+            )}
           </section>
         )}
 

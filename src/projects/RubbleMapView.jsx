@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import Dropdown from '../components/Dropdown';
+import { getData } from '../data/api';
 
 /*
   الخريطة الوطنية لإدارة الأنقاض — نسخة الويب من مشروع QGIS (MAPS/RubbleMap).
-  البيانات: public/maps/rubble/rubble-map.json (مصدّرة من RubbleMap.gpkg).
+  البيانات: data/maps/rubble-map.json (مصدّرة من RubbleMap.gpkg) — تُقدَّم عبر بوابة البيانات بالصلاحيات.
   الطبقات تظهر بالتدريج حسب التكبير كما في QGIS:
     الوطني: نسبة الإنجاز لكل محافظة + دوائر المنفّذ لكل ناحية
     التكبير: المكبات، ثم مواقع العمل وخطوط الترحيل والآليات، ثم حدود النواحي
@@ -81,7 +82,7 @@ export default function RubbleMapView() {
   const [show, setShow] = useState({ bubbles: true, active: true, done: true, dump: true, proposed: true, flows: true, machinery: true });
 
   useEffect(() => {
-    fetch('maps/rubble/rubble-map.json').then((r) => r.json()).then(setData).catch(() => setData(false));
+    getData('rubble-map').then(setData).catch(() => setData(false));
   }, []);
 
   /* إنشاء الخريطة مرة واحدة */
@@ -111,7 +112,9 @@ export default function RubbleMapView() {
     m.on('zoomend', () => setZoom(m.getZoom()));
     setZoom(m.getZoom());
     map.current = m;
-    return () => { m.remove(); map.current = null; };
+    const ro = new ResizeObserver(() => m.invalidateSize());
+    ro.observe(box.current);
+    return () => { ro.disconnect(); m.remove(); map.current = null; };
   }, []);
 
   const pick = (f) => (!sel.gov || f.adm1_pcode === sel.gov) && (!sel.dis || f.adm2_pcode === sel.dis) && (!sel.sub || f.adm3_pcode === sel.sub);
