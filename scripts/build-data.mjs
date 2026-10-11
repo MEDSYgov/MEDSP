@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as XLSX from 'xlsx';
+import zlib from 'node:zlib';
 
 /*
   xlsx 0.20 (من مصدر SheetJS الرسمي) لا يحمّل نظام الملفات تلقائياً في
@@ -76,7 +77,7 @@ function loadPlaces() {
 function findMonthlyFiles() {
   const files = fs
     .readdirSync(dataDir)
-    .filter((f) => f.endsWith('.xlsx') && f !== REF_FILE && !f.startsWith('~$'))
+    .filter((f) => (f.endsWith('.xlsx') || f.endsWith('.csv.gz')) && f !== REF_FILE && !f.startsWith('~$'))
     .sort();
 
   if (files.length === 0) {
@@ -517,6 +518,25 @@ const REPORTS = {
 
 /* ---------- التنفيذ ---------- */
 
+/* قارئ CSV (يدعم الحقول المقتبسة والأسطر داخلها) ← مصفوفة كائنات بأسماء الأعمدة */
+function readCsvGz(file) {
+  const text = zlib.gunzipSync(fs.readFileSync(file)).toString('utf8').replace(/^\uFEFF/, '');
+  const rows = [];
+  let row = []; let field = ''; let q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else q = false; } else field += c;
+    } else if (c === '"') q = true;
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+    else if (c !== '\r') field += c;
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  const head = rows.shift();
+  return rows.map((r) => Object.fromEntries(head.map((h, j) => [h, r[j] ?? ''])));
+}
+
 function run() {
   fs.mkdirSync(outDir, { recursive: true });
 
@@ -531,13 +551,26 @@ function run() {
   const periods = [];
 
   for (const file of files) {
-    const wb = XLSX.readFile(path.join(dataDir, file), { cellDates: true });
-    const sheet = wb.Sheets['التقارير'];
-    if (!sheet) {
-      console.warn(`  تخطّي ${file} — لا تحتوي على ورقة "التقارير"`);
-      continue;
+    let batch;
+    if (file.endsWith('.csv.gz')) {
+      /* التصدير الكبير يُحفظ CSV مضغوطاً (ورقة «التقارير» فقط): أسرع بكثير وأصغر حجماً من xlsx */
+      batch = readCsvGz(path.join(dataDir, file));
+    } else {
+      const wb = XLSX.readFile(path.join(dataDir, file), { cellDates: true });
+      const sheet = wb.Sheets['التقارير'];
+      if (!sheet) {
+        console.warn(`  تخطّي ${file} — لا تحتوي على ورقة "التقارير"`);
+        continue;
+      }
+      batch = XLSX.utils.sheet_to_json(sheet, { defval: '' });
     }
-    const batch = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    /* التصدير الشامل (2025–2026) يستخدم تسميات أقدم لبعض الأعمدة: توحَّد مع الحالية */
+    const ALIAS = {
+      'عدد شهداء الدفاع المدني السوري': 'عدد شهداء وزارة الطوارئ و إدارة الكوارث',
+      'عدد المصابين من الدفاع المدني السوري': 'عدد المصابين من وزارة الطوارئ و إدارة الكوارث',
+      'المساحة المحترقة': 'المساحة المحترقة (دنم)',
+    };
+    for (const row of batch) for (const [from, to] of Object.entries(ALIAS)) if (from in row && !(to in row)) row[to] = row[from];
     let added = 0;
     for (const row of batch) {
       const key = clean(row['رقم التقرير']);
@@ -545,16 +578,22 @@ function run() {
       seen.set(key, row);
       added += 1;
     }
-    periods.push(describe(file));
     console.log(`  ${file}: ${batch.length} سجلاً، جديد منها ${added}`);
   }
 
   const rows = [...seen.values()];
-  periods.sort((a, b) => a.year - b.year || a.month - b.month);
-  const period =
-    periods.length === 1
-      ? periods[0].label
-      : `${periods[0].label} — ${periods[periods.length - 1].label}`;
+  /* الفترة من تواريخ السجلات نفسها (لا من أسماء الملفات): يصلح لملف شهري أو ملف شامل لعدة سنوات */
+  const AR_MONTHS = ['كانون الثاني', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين الأول', 'تشرين الثاني', 'كانون الأول'];
+  let minD = null; let maxD = null;
+  for (const r of rows) {
+    const d = r['التاريخ'] instanceof Date ? r['التاريخ'] : new Date(r['التاريخ']);
+    if (Number.isNaN(d.getTime())) continue;
+    const t = new Date(d.getTime() + 12 * 3600e3);
+    if (!minD || t < minD) minD = t;
+    if (!maxD || t > maxD) maxD = t;
+  }
+  const lbl = (d) => `${AR_MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+  const period = !minD ? '' : lbl(minD) === lbl(maxD) ? lbl(minD) : `${lbl(minD)} — ${lbl(maxD)}`;
 
   const overview = {
     period,
