@@ -2976,7 +2976,7 @@ button.masthead__login{font:inherit;cursor:pointer}
 .omap-filters{display:flex;flex-wrap:nowrap;gap:8px;align-items:flex-end;position:relative;z-index:5}
 .omap-filters>*{flex:1;min-width:0}
 .omap-chips{display:flex;flex-wrap:wrap;gap:8px}
-.omap-chips button{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--edge-strong);background:var(--glass);color:var(--ink);border-radius:999px;
+.omap-chips button{display:inline-flex;align-items:center;gap:8px;padding-inline-start:6px !important;border:1px solid var(--edge-strong);background:var(--glass);color:var(--ink);border-radius:999px;
   padding:7px 14px;font:inherit;font-size:.9rem;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s}
 .omap-chips button span{display:inline-grid}
 .omap-chips button small{font-weight:500;color:var(--ink-faint);font-size:.76rem}
@@ -2994,7 +2994,9 @@ button.masthead__login{font:inherit;cursor:pointer}
 .omap-loading{top:50%}
 .omap-hint{bottom:14px}
 .omap-ico{background:none;border:0}
-.omap-ico svg{display:block;filter:drop-shadow(0 0 4px currentColor) drop-shadow(0 1px 1px rgba(0,0,0,.6));opacity:.93}
+.omap-ico svg{display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.7)) drop-shadow(0 0 5px rgba(0,0,0,.35))}
+.omap-ico:hover{z-index:9999 !important}
+.omap-ico:hover svg{transform:scale(1.15);transition:transform .12s}
 .omap-label{white-space:nowrap}
 .omap-label span{display:inline-flex;flex-direction:column;align-items:center;transform:translate(-50%,-50%);font-weight:800;font-size:13px;color:#ebe8d7;line-height:1.2;
   text-shadow:0 0 4px #0b1f1c,0 0 4px #0b1f1c,0 0 8px #0b1f1c}
@@ -3012,7 +3014,8 @@ button.masthead__login{font:inherit;cursor:pointer}
 .omap-types button{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;color:var(--ink);font:inherit;font-size:.84rem;
   padding:5px 6px;border-radius:var(--radius-sm);cursor:pointer;text-align:right}
 .omap-types button:hover{background:var(--glass-strong)}
-.omap-types button:not(.is-on){opacity:.38}
+.omap-types button:not(.is-on){opacity:.55}
+.omap-types button.is-on{background:var(--glass-strong);outline:1px solid var(--edge-strong)}
 .omap-types button>span:first-child{width:22px;display:grid;place-items:center;flex-shrink:0}
 .omap-types__t{display:flex;flex-direction:column;line-height:1.35}
 .omap-types__t small{font-size:.7rem;color:var(--ink-faint)}
@@ -3026,7 +3029,7 @@ button.masthead__login{font:inherit;cursor:pointer}
 .omap-kpi__grid .is-teal{color:#3ec6c2}
 .omap-bars{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:7px}
 .omap-bars li{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:.8rem;color:var(--ink)}
-.omap-bars li.is-off{opacity:.35}
+.omap-bars li.is-sel span,.omap-bars li.is-sel b{color:var(--accent-text);font-weight:800}
 .omap-bars i{grid-column:1/-1;height:5px;border-radius:99px;background:var(--surface-track);overflow:hidden;display:flex}
 .omap-bars em{display:block;height:100%;border-radius:99px;margin-inline-start:0}
 .omap-src{margin:0;font-size:.74rem;color:var(--ink-faint)}

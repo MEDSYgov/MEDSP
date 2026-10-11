@@ -34,16 +34,19 @@ const GROUPS = [
 /* ترتيب الرسم: الأكثر عدداً في الأسفل والأندر في الأعلى */
 const DRAW = ['services', 'ambulance', 'fire', 'traffic', 'other', 'cold', 'drowning'];
 
-const SHAPE = {
-  circle: '<circle cx="12" cy="12" r="9.5"/>',
-  triangle: '<path d="M12 2.5l10 17.5H2z"/>',
-  square: '<rect x="3.5" y="3.5" width="17" height="17" rx="2"/>',
-  diamond: '<path d="M12 1.5l10.5 10.5L12 22.5 1.5 12z"/>',
-  pentagon: '<path d="M12 2l10 7.3-3.8 11.7H5.8L2 9.3z"/>',
-  hexagon: '<path d="M12 1.8l9 5.1v10.2l-9 5.1-9-5.1V6.9z"/>',
-  star: '<path d="M12 1.8l3 6.6 7.2.8-5.4 4.9 1.5 7.1L12 17.6l-6.3 3.6 1.5-7.1-5.4-4.9 7.2-.8z"/>',
+/* أيقونات الأنواع: شارة دائرية بلون النوع، وداخلها رمز يدل عليه */
+const ICON = {
+  ambulance: '<path d="M10.2 5.5h3.6v4.7h4.7v3.6h-4.7v4.7h-3.6v-4.7H5.5v-3.6h4.7z"/>',
+  fire: '<path d="M12.3 4.6c.6 2.6 4.2 4.4 4.2 8.4a4.5 4.5 0 01-9 0c0-2 .9-3.4 2.1-4.4 0 1.5.7 2.6 1.7 3.1-.3-2.8.4-5 1-7.1z"/><path d="M12 13.2c.9 1 1.6 1.6 1.6 2.7a1.6 1.6 0 01-3.2 0c0-1 .7-1.7 1.6-2.7z" fill-opacity=".35"/>',
+  traffic: '<path d="M7.6 8.2c.3-.9 1-1.4 1.9-1.4h5c.9 0 1.6.5 1.9 1.4l1 2.8h.6c.6 0 1 .4 1 1v3.6h-1.4v1.2a1 1 0 01-2 0v-1.2H8.4v1.2a1 1 0 01-2 0v-1.2H5V12c0-.6.4-1 1-1h.6z"/><path d="M8.3 11h7.4l-.8-2.3a.8.8 0 00-.7-.5H9.8a.8.8 0 00-.7.5z" fill-opacity=".35"/><circle cx="8" cy="13.4" r=".95" fill-opacity=".35"/><circle cx="16" cy="13.4" r=".95" fill-opacity=".35"/>',
+  cold: '<path d="M5.5 14.6a6.5 6.5 0 0113 0v.4h-13z"/><path d="M4.5 15.8h15v1.9h-15z"/><path d="M11.1 7.6h1.8v4.6h-1.8z" fill-opacity=".35"/>',
+  drowning: '<circle cx="12" cy="7.6" r="2.3"/><path d="M4.5 13.6c1.25 0 1.25-1 2.5-1s1.25 1 2.5 1 1.25-1 2.5-1 1.25 1 2.5 1 1.25-1 2.5-1 1.25 1 2.5 1M4.5 17.3c1.25 0 1.25-1 2.5-1s1.25 1 2.5 1 1.25-1 2.5-1 1.25 1 2.5 1 1.25-1 2.5-1 1.25 1 2.5 1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+  services: '<path d="M15.6 5.2a3.8 3.8 0 00-4.7 4.9l-5.3 5.3a1.6 1.6 0 002.3 2.3l5.3-5.3a3.8 3.8 0 004.9-4.7l-2.3 2.3-2.2-.6-.6-2.2z"/>',
+  other: '<path d="M12 5l2.1 4.4 4.8.6-3.5 3.3.9 4.8L12 15.8l-4.3 2.3.9-4.8L5.1 10l4.8-.6z"/>',
 };
-const glyph = (g, s, stroke = '#0b1f1c') => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="color:${g.color}"><g fill="currentColor" stroke="${stroke}" stroke-width="1.6" stroke-linejoin="round">${SHAPE[g.shape]}</g></svg>`;
+/* لون الرمز داخل الشارة: داكن على الألوان الفاتحة ليبقى واضحاً */
+const INK = { traffic: '#2a2205', drowning: '#062a28', services: '#0e2a25', other: '#2a2208' };
+const glyph = (g, s, ring = '#0b1f1c') => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="${g.color}" stroke="${ring}" stroke-width="1.4"/><g fill="${INK[g.id] || '#ffffff'}" style="color:${INK[g.id] || '#ffffff'}">${ICON[g.id]}</g></svg>`;
 
 /* تدرّج الكثافة — نفس فئات QGIS */
 const RAMP = [
@@ -89,7 +92,7 @@ export default function OpsMapView() {
   const [admin, setAdmin] = useState(null);
   const [zoom, setZoom] = useState(7);
   const [view, setView] = useState(0);
-  const [on, setOn] = useState([]); /* أنواع مختارة — فارغة = الكل */
+  const [sel, setSel] = useState('ambulance'); /* نوع واحد في كل مرة — عرض كل الأنواع معاً كان بطيئاً */
   const [f, setF] = useState({ year: [], month: [], gov: [], dis: [], sub: [] });
 
   useEffect(() => {
@@ -136,8 +139,8 @@ export default function OpsMapView() {
     return data.rows.filter((r) => mOk[r[2]] && pOk[r[0]]);
   }, [data, meta, f]);
 
-  const shownGroups = on.length ? on : GROUPS.map((g) => g.id);
-  const gIdx = useMemo(() => new Set((on.length ? on : GROUPS.map((g) => g.id)).map((id) => GROUPS.findIndex((g) => g.id === id))), [on]);
+  const gIdx = useMemo(() => new Set([GROUPS.findIndex((g) => g.id === sel)]), [sel]);
+  const cur = GROUPS.find((g) => g.id === sel);
 
   /* تجميع حسب التجمع والنوع، والمؤشرات */
   const agg = useMemo(() => {
@@ -220,7 +223,7 @@ export default function OpsMapView() {
           if (!v) continue;
           const pl = data.places[pi];
           if (!vb.contains([pl[1], pl[2]])) continue;
-          const s = Math.round(Math.min(9 + Math.sqrt(v) / g.div * 2.2, g.max));
+          const s = Math.round(Math.min(16 + (Math.sqrt(v) / g.div) * 2, 34));
           const parts = GROUPS.map((x, k) => (p.g[k] ? `<tr><th><i style="color:${x.color}">●</i> ${x.name}</th><td>${fmt(p.g[k])}</td></tr>` : '')).join('');
           marks.push(L.marker([pl[1], pl[2]], {
             pane: 'pts', zIndexOffset: DRAW.indexOf(gid) * 100,
@@ -250,7 +253,6 @@ export default function OpsMapView() {
     if (fs.length) m.flyToBounds(L.geoJSON({ type: 'FeatureCollection', features: fs }).getBounds(), { padding: [24, 24], duration: 0.6 });
   }, [f.gov, f.dis, f.sub, admin]);
 
-  const toggle = (id) => setOn((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
   const opt = (layer, nameKey, codeKey, keep) => (admin ? admin[layer].features.map((x) => x.properties).filter(keep)
     .map((p) => ({ value: p[codeKey], label: p[nameKey] })).sort((a, b) => a.label.localeCompare(b.label, 'ar')) : []);
   const set = (k, v) => setF((c) => ({ ...c, [k]: v, ...(k === 'gov' ? { dis: [], sub: [] } : k === 'dis' ? { sub: [] } : {}) }));
@@ -274,11 +276,10 @@ export default function OpsMapView() {
       </div>
 
       <div className="omap-chips" role="group" aria-label="فرز حسب نوع العملية">
-        <button type="button" className={!on.length ? 'is-on' : ''} onClick={() => setOn([])}>كل العمليات</button>
         {GROUPS.map((g) => (
-          <button type="button" key={g.id} className={on.includes(g.id) ? 'is-on' : ''} aria-pressed={on.includes(g.id)} onClick={() => toggle(g.id)}
+          <button type="button" key={g.id} className={sel === g.id ? 'is-on' : ''} aria-pressed={sel === g.id} onClick={() => setSel(g.id)}
             style={{ '--c': g.color }} title={g.hint}>
-            <span dangerouslySetInnerHTML={{ __html: glyph(g, 14, 'rgba(0,0,0,.35)') }} />{g.name}
+            <span dangerouslySetInnerHTML={{ __html: glyph(g, 22, 'transparent') }} />{g.name}
             {agg && <small>{fmt(agg.byGroup[GROUPS.indexOf(g)])}</small>}
           </button>
         ))}
@@ -298,12 +299,12 @@ export default function OpsMapView() {
             <ul className="omap-ramp">
               {RAMP.map(([b, c], i) => <li key={b}><i style={{ background: c }} /><span dir="ltr">{i < RAMP.length - 1 ? `${fmt(b)} – ${fmt(RAMP[i + 1][0])}` : `${fmt(b)}+`}</span></li>)}
             </ul>
-            <p>نوع العملية <em>— عند التكبير، والحجم بعدد العمليات</em></p>
+            <p>نوع العملية <em>— اضغط للاختيار؛ يظهر عند التكبير وحجمه بعدد العمليات</em></p>
             <ul className="omap-types">
               {GROUPS.map((g) => (
                 <li key={g.id}>
-                  <button type="button" className={shownGroups.includes(g.id) ? 'is-on' : ''} onClick={() => toggle(g.id)}>
-                    <span dangerouslySetInnerHTML={{ __html: glyph(g, 16) }} />
+                  <button type="button" className={sel === g.id ? 'is-on' : ''} onClick={() => setSel(g.id)}>
+                    <span dangerouslySetInnerHTML={{ __html: glyph(g, 22) }} />
                     <span className="omap-types__t">{g.name}{g.hint && <small>{g.hint}</small>}</span>
                   </button>
                 </li>
@@ -313,7 +314,7 @@ export default function OpsMapView() {
 
           {agg && (
             <div className="omap-box omap-kpi">
-              <h4>{on.length === 1 ? GROUPS.find((g) => g.id === on[0]).name : on.length ? 'العمليات المختارة' : 'كل العمليات'}</h4>
+              <h4>{cur.name}</h4>
               <b className="omap-kpi__big">{fmt(agg.n)}</b>
               <span className="omap-kpi__sub">عملية في {fmt(agg.places)} تجمعاً · {data.period}</span>
               <ul className="omap-kpi__grid">
@@ -323,7 +324,7 @@ export default function OpsMapView() {
               </ul>
               <ul className="omap-bars">
                 {GROUPS.map((g, i) => (
-                  <li key={g.id} className={shownGroups.includes(g.id) ? '' : 'is-off'}>
+                  <li key={g.id} className={sel === g.id ? 'is-sel' : ''}>
                     <span>{g.name}</span><b>{fmt(agg.byGroup[i])}</b>
                     <i><em style={{ width: `${(agg.byGroup[i] / maxG) * 100}%`, background: g.color }} /></i>
                   </li>
