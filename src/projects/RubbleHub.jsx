@@ -7,6 +7,7 @@ import DroneCalc from './DroneCalc';
 import RubbleOverview from './RubbleOverview';
 import RubbleGallery from './RubbleGallery';
 import RubbleAtlas from './RubbleAtlas';
+import DirectorateWorks from './DirectorateWorks';
 import RubbleMapView from './RubbleMapView';
 import { fromResponse } from './RubbleTransfer';
 import { Entities, Dumps, isEntityRegistry, entitiesFromProject } from './RubbleRegistry';
@@ -280,6 +281,9 @@ export default function RubbleHub({ basemap, initial }) {
           <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 3.5 5.5 2l5 1.5 4-1.5v10.5l-4 1.5-5-1.5-4 1.5Z M5.5 2v10.5 M10.5 3.5V14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /></svg>
           الخريطة
         </button>
+        <button type="button" className={stage === 'directorates' ? 'is-on' : ''} onClick={() => setStage('directorates')}>
+          أعمال المديريات
+        </button>
         <button type="button" className={stage === 'gallery' ? 'is-on' : ''} onClick={() => setStage('gallery')}>
           الأرشيف المصور
         </button>
@@ -292,6 +296,7 @@ export default function RubbleHub({ basemap, initial }) {
       </nav>
 
       {stage === 'overview' && <RubbleOverview plan={plan} planItems={planItems} surveys={named} pipe={pipe.items} registry={registry} go={setStage} />}
+      {stage === 'directorates' && <DirectorateWorks basemap={basemap} projSurveys={named} planRows={plan.rows} />}
       {stage === 'atlas' && <RubbleAtlas basemap={basemap} />}
       {stage === 'map' && <RubbleMapView />}
       {stage === 'gallery' && <RubbleGallery surveys={named} pipe={pipe.items} />}

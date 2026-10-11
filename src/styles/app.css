@@ -2927,3 +2927,39 @@ button.rx-cell:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(
 .pc-vals em{font-style:normal;font-weight:700;opacity:.85}
 .pc-row{align-items:start}
 @media (max-width:640px){.pc-row .pc-wrap{grid-column:1/-1;grid-row:2}}
+
+/* ===== أعمال المديريات ===== */
+.dw{display:flex;flex-direction:column;gap:14px}
+.dw-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:18px;border-radius:16px;background:var(--glass);border:1px solid var(--edge);border-top:4px solid #4f8fdc}
+.dw-head h2{margin:0 0 4px;font-size:1.3rem}.dw-head p{margin:0;font-size:.95rem;opacity:.85;max-width:640px;line-height:1.7}
+.dw-switch{display:inline-flex;padding:4px;border-radius:12px;background:var(--edge);gap:4px}
+.dw-switch button{border:0;background:transparent;color:var(--ink);font:inherit;font-weight:700;font-size:.95rem;padding:9px 16px;border-radius:9px;cursor:pointer}
+.dw-switch button.is-on{color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.dw-switch button.is-dir.is-on{background:#4f8fdc}.dw-switch button.is-proj.is-on{background:#2f9e74}
+.dw-switch button.is-mix.is-on{background:linear-gradient(90deg,#4f8fdc,#2f9e74)}
+.dw-kpis{grid-template-columns:2fr repeat(3,1fr)}
+.dw-kpi-main b{font-size:2rem}
+.dw-kpi-main.is-dir{border-color:#4f8fdc}.dw-kpi-main.is-proj{border-color:#2f9e74}.dw-kpi-main.is-mix{border-image:linear-gradient(90deg,#4f8fdc,#2f9e74) 1}
+.dw-legend{margin:0}
+.dw-bars{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.dw-bars button{all:unset;cursor:pointer;box-sizing:border-box;width:100%;display:grid;grid-template-columns:120px 1fr 60px;align-items:center;gap:10px;padding:7px 8px;border-radius:9px}
+.dw-bars button:hover{background:var(--edge)}
+.dw-bars button.is-on{background:rgba(79,143,220,.18);outline:1px solid #4f8fdc}
+.dw-bars button.is-dim{opacity:.45}
+.dw-bars__n{display:flex;flex-direction:column;font-weight:700}.dw-bars__n small{font-weight:400;font-size:.84rem;opacity:.8}
+.dw-bars__bar{display:flex;height:14px;border-radius:7px;background:var(--edge);overflow:hidden}
+.dw-bars__bar i{display:block;height:100%}
+.dw-bars b{text-align:left}
+.dw-bars__split{grid-column:2/4;font-size:.84rem;opacity:.8}
+.dw-months{display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding-bottom:6px}
+.dw-month{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:46px;flex:1}
+.dw-month__col{display:flex;flex-direction:column-reverse;justify-content:flex-start;height:160px;width:70%;background:var(--edge);border-radius:6px;overflow:hidden}
+.dw-month__col i{display:block;width:100%}
+.dw-month b{font-size:.8rem}.dw-month small{font-size:.78rem;opacity:.8;text-align:center;line-height:1.3}
+.dw-month.is-on .dw-month__col{outline:2px solid #4f8fdc}.dw-month.is-dim{opacity:.45}
+@media (max-width:640px){
+  .dw-head{padding:14px}.dw-switch{width:100%}.dw-switch button{flex:1;padding:9px 6px;font-size:.88rem}
+  .dw-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.dw-kpi-main{grid-column:1/-1}
+  .dw-bars button{grid-template-columns:92px 1fr 50px;gap:8px}
+  .dw-month__col{height:120px}.dw-month{min-width:40px}
+}
