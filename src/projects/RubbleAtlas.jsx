@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import SyriaMap from '../components/SyriaMap';
 import Dropdown from '../components/Dropdown';
+import { getData } from '../data/api';
 
 /*
   كميات الأنقاض في سوريا — قسم مستقل للاطلاع من قبل الجهات الراغبة بالمشاركة في إزالة الأنقاض.
@@ -94,7 +95,7 @@ export default function RubbleAtlas({ basemap }) {
   const [limit, setLimit] = useState(15);
   const [onlyReady, setOnlyReady] = useState(false);
 
-  useEffect(() => { fetch('data/rubble-assessment.json').then((r) => r.json()).then((d) => setData(d.sites || [])).catch(() => setData([])); }, []);
+  useEffect(() => { getData('rubble-assessment').then((d) => setData(d.sites || [])).catch(() => setData([])); }, []);
 
   const toggle = (k, v) => setF((c) => {
     const next = { ...c, [k]: v == null ? [] : c[k].includes(v) ? c[k].filter((x) => x !== v) : [...c[k], v] };

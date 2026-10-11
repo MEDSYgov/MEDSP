@@ -2963,3 +2963,7 @@ button.rx-cell:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(
   .dw-bars button{grid-template-columns:92px 1fr 50px;gap:8px}
   .dw-month__col{height:120px}.dw-month{min-width:40px}
 }
+.masthead__user{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+.masthead__name{font-size:.9rem;opacity:.85}
+button.masthead__login{font:inherit;cursor:pointer}
+@media (max-width:640px){.masthead__name{display:none}}

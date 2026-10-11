@@ -1,3 +1,4 @@
+import { getData } from '../data/api';
 /*
   عمليات إزالة الأنقاض من تقرير الأعمال الخدمية.
 
@@ -13,10 +14,7 @@ const FEEDS = new Map();
 
 export function loadOps(feed = 'services') {
   if (!FEEDS.has(feed)) {
-    FEEDS.set(feed, fetch(`data/${feed}.json`).then((r) => {
-      if (!r.ok) throw new Error('تعذّر تحميل بيانات العمليات');
-      return r.json();
-    }).catch((e) => { FEEDS.delete(feed); throw e; }));
+    FEEDS.set(feed, getData(feed).catch((e) => { FEEDS.delete(feed); throw e; }));
   }
   return FEEDS.get(feed);
 }

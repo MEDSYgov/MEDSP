@@ -33,8 +33,8 @@ function LoginForm() {
     <div className="auth">
       <div className="auth__card">
         <Icon name="lock" className="auth__icon" />
-        <h1>الدخول إلى مساحة العمل</h1>
-        <p className="auth__lede">لإدارة المشاريع والاستبيانات ومراجعة الإجابات.</p>
+        <h1>الدخول إلى المنصة</h1>
+        <p className="auth__lede">المنصة متاحة للحسابات المعتمدة فقط. ما تراه بعد الدخول يتبع صلاحيات حسابك.</p>
 
         <label className="bf">
           <span className="bf__label">اسم المستخدم</span>
@@ -64,7 +64,7 @@ function LoginForm() {
   );
 }
 
-export default function AuthGate({ children }) {
+export default function AuthGate({ children, wrap = (n) => n }) {
   const [session, setSession] = useState(undefined);
   const [me, setMe] = useState(undefined);
 
@@ -88,14 +88,14 @@ export default function AuthGate({ children }) {
   }, [userId]);
 
   if (session === undefined || (session && me === undefined)) {
-    return <div className="auth"><p className="auth__lede">جارٍ التحقق…</p></div>;
+    return wrap(<div className="auth"><p className="auth__lede">جارٍ التحقق…</p></div>);
   }
 
-  if (!session) return <LoginForm />;
+  if (!session) return wrap(<LoginForm />);
 
   /* حساب موجود في المصادقة لكن بلا دور — لا يصل لشيء */
   if (!me) {
-    return (
+    return wrap(
       <div className="auth">
         <div className="auth__card">
           <Icon name="lock" className="auth__icon" />

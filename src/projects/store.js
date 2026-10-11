@@ -123,24 +123,41 @@ export async function getMyRole() {
 /* ---------- الحسابات (للسوبر أدمن) ---------- */
 
 export async function listAccounts() {
-  const { data, error } = await supabase.rpc('list_accounts');
+  const { data, error } = await supabase.rpc('list_accounts_v2');
   fail(error);
-  return data.map((r) => ({
-    id: r.user_id,
-    username: r.username,
-    displayName: r.display_name,
-    role: r.role,
-    createdAt: r.created_at,
-    lastSignIn: r.last_sign_in_at,
+  return (data || []).map((r) => ({
+    id: r.user_id, username: r.username, displayName: r.display_name, role: r.role,
+    sections: r.sections || [], govs: r.govs || [], surveys: r.surveys || [],
+    createdAt: r.created_at, lastSignIn: r.last_sign_in_at,
   }));
 }
 
-export async function createAccount({ username, password, displayName }) {
+export async function createAccount({ username, password, displayName, role = 'viewer', sections = [], govs = [], surveys = [] }) {
   const { data, error } = await supabase.rpc('create_account', {
     p_username: username, p_password: password, p_display: displayName,
+    p_role: role, p_sections: sections.length ? sections : null, p_govs: govs.length ? govs : null, p_surveys: surveys.length ? surveys : null,
   });
-  fail(error, 'تعذّر إنشاء الحساب');
+  fail(error);
   return data;
+}
+
+export async function updateAccountAccess(id, { role, sections = [], govs = [], surveys = [] }) {
+  const { error } = await supabase.rpc('update_account_access', {
+    p_user: id, p_role: role, p_sections: sections.length ? sections : null, p_govs: govs.length ? govs : null, p_surveys: surveys.length ? surveys : null,
+  });
+  fail(error);
+}
+
+export async function listSurveyTitles() {
+  const { data, error } = await supabase.rpc('list_survey_titles');
+  fail(error);
+  return data || [];
+}
+
+export async function mySurveys() {
+  const { data, error } = await supabase.rpc('my_surveys');
+  fail(error);
+  return data || [];
 }
 
 export async function resetAccountPassword(id, password) {

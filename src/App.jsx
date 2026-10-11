@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getData, clearData } from './data/api';
 import Masthead from './components/Masthead';
 import MainNav from './components/MainNav';
 import ReportShell from './components/ReportShell';
@@ -20,9 +21,52 @@ import MonthlyReport from './components/MonthlyReport';
 import RubbleHub from './projects/RubbleHub';
 
 
+/* الأقسام: ops (النظرة العامة والعمليات والخرائط) · monthly · rubble · projects */
+const SECTION_OF = { overview: 'ops', ops: 'ops', maps: 'ops', monthly: 'monthly', rubble: 'rubble', projects: 'projects', project: 'projects' };
+const FIRST = [['ops', '#/'], ['rubble', '#/rubble'], ['monthly', '#/monthly'], ['projects', '#/projects']];
+const WORKSPACE = { super_admin: 'مساحة العمل', admin: 'مساحة العمل', reviewer: 'مراجعة الاستبيانات', collector: 'استبياناتي' };
+
 export default function App() {
   const { theme, toggle: toggleTheme } = useTheme();
   const route = useRoute();
+
+  /* رابط تعبئة: #/s/<id> — صفحة مستقلة (تحميها كلمة مرور الاستبيان إن وُجدت) */
+  if (route.page === 'fill') {
+    return (
+      <div className="layout">
+        <Masthead theme={theme} onToggleTheme={toggleTheme} />
+        <main><FillPage surveyId={route.id} /></main>
+        <Footer />
+      </div>
+    );
+  }
+
+  /* كل ما عدا التعبئة خلف تسجيل الدخول */
+  const frame = (node) => (
+    <div className="layout">
+      <Masthead theme={theme} onToggleTheme={toggleTheme} />
+      <main>{node}</main>
+      <Footer />
+    </div>
+  );
+  return (
+    <AuthGate wrap={frame}>
+      {({ me, signOut }) => <Platform me={me} signOut={() => { clearData(); signOut(); }} theme={theme} toggleTheme={toggleTheme} route={route} />}
+    </AuthGate>
+  );
+}
+
+function Platform({ me, signOut, theme, toggleTheme, route }) {
+  const full = me.role === 'super_admin' || me.role === 'admin';
+  const can = (sec) => full || (me.role !== 'collector' && (!me.sections?.length || me.sections.includes(sec)));
+  const allowedHere = route.page === 'admin' || can(SECTION_OF[route.page] || 'ops');
+  /* صفحة غير مسموحة (مثل النظرة العامة لحساب الأنقاض فقط) ← أول قسم مسموح */
+  useEffect(() => {
+    if (allowedHere) return;
+    const first = FIRST.find(([sec]) => can(sec));
+    window.location.hash = first ? first[1] : '#/admin';
+  });
+  const user = { name: me.displayName || me.username, workspace: WORKSPACE[me.role], onSignOut: signOut };
   /* التقرير الظاهر يُشتق من الرابط */
   const activeId = route.page === 'ops' ? route.id : 'overview';
   const [projects, setProjects] = useState({ status: 'loading', list: [] });
@@ -33,8 +77,8 @@ export default function App() {
 
   useEffect(() => {
     Promise.all([
-      fetch('data/summary.json').then((r) => r.json()),
-      fetch('data/basemap.json').then((r) => r.json()),
+      can('ops') || can('monthly') ? getData('summary') : Promise.resolve({ byOperation: [] }),
+      getData('basemap'),
     ])
       .then(([overview, basemap]) => setBase({ status: 'ready', overview, basemap }))
       .catch(() => setBase({ status: 'error' }));
@@ -42,6 +86,7 @@ export default function App() {
 
   /* المشاريع المنشورة — لقائمة التنقل ولصفحات المشاريع */
   useEffect(() => {
+    if (!can('projects') && !can('rubble')) { setProjects({ status: 'ready', list: [] }); return; }
     listPublishedProjects()
       /* سجل الجهات مشروع منشور تقنياً (لتُقرأ سجلاته)، لكنه يُعرض داخل «إدارة الأنقاض» لا كمشروع */
       .then((list) => setProjects({ status: 'ready', list: list.filter((p) => !isEntityRegistry(p)) }))
@@ -49,13 +94,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (route.page !== 'overview' && route.page !== 'ops') return;
+    if ((route.page !== 'overview' && route.page !== 'ops') || !can('ops')) return;
     if (route.page === 'ops' && !categories.some((c) => c.id === activeId)) return;
     if (reports[activeId]) return;
     let cancelled = false;
 
-    fetch(`data/${activeId}.json`)
-      .then((r) => r.json())
+    getData(activeId)
       .then((data) => {
         if (!cancelled) setReports((prev) => ({ ...prev, [activeId]: data }));
       })
@@ -116,25 +160,13 @@ export default function App() {
     document.title = page ? `${page} — ${site}` : `${site} — وزارة الطوارئ وإدارة الكوارث`;
   }, [route, active.name, currentProject, unknownOp]);
 
-  /* رابط تعبئة عام: #/s/<id> — صفحة مستقلة بلا تبويبات ولا بيانات إدارية */
-  if (route.page === 'fill') {
-    return (
-      <div className="layout">
-        <Masthead theme={theme} onToggleTheme={toggleTheme} />
-        <main><FillPage surveyId={route.id} /></main>
-        <Footer />
-      </div>
-    );
-  }
-
   /* مساحة العمل الإدارية — خلف تسجيل الدخول */
   if (route.page === 'admin') {
     return (
       <div className="layout">
         <Masthead theme={theme} onToggleTheme={toggleTheme} />
         <main>
-          <AuthGate>
-            {({ me, signOut }) => (
+          {(
               <>
                 <div className="adminbar">
                   <div className="shell adminbar__inner">
@@ -142,14 +174,13 @@ export default function App() {
                     <span className="adminbar__user">
                       <span>{me.displayName}</span>
                       <button type="button" className="adminbar__exit" onClick={signOut}>خروج</button>
-                      <a className="adminbar__exit" href="#/">الموقع العام</a>
+                      {me.role !== 'collector' && <a className="adminbar__exit" href="#/">المنصة</a>}
                     </span>
                   </div>
                 </div>
                 <AdminApp basemap={base.basemap} me={me} />
               </>
             )}
-          </AuthGate>
         </main>
         <Footer />
       </div>
@@ -158,11 +189,12 @@ export default function App() {
 
   return (
     <div className="layout">
-      <Masthead theme={theme} onToggleTheme={toggleTheme} showLogin />
-      <MainNav route={route} ops={ops} projects={projects.list} projectsStatus={projects.status} />
+      <Masthead theme={theme} onToggleTheme={toggleTheme} user={user} />
+      <MainNav route={route} ops={ops} projects={projects.list} projectsStatus={projects.status} can={can} />
 
       <main>
-        {route.page === 'rubble' && (
+        {!allowedHere && <section className="shell"><div className="pending"><p>جارٍ التحويل…</p></div></section>}
+        {allowedHere && route.page === 'rubble' && (
           <section className="shell">
             <div className="report__head"><h1>إدارة الأنقاض</h1></div>
             <p className="report__summary">متابعة الأنقاض عبر مراحلها: من التقدير، إلى التخطيط والدراسة، فالتنفيذ والترحيل، ثم التدوير والاستثمار.</p>
@@ -170,7 +202,7 @@ export default function App() {
           </section>
         )}
 
-        {route.page === 'monthly' && (
+        {allowedHere && route.page === 'monthly' && (
           <section className="shell">
             <div className="report__head"><h1>التقرير الشهري</h1></div>
             <p className="report__summary">الأشكال الإحصائية للتقرير الشهري، جاهزة للتحميل كصور.</p>
@@ -178,7 +210,7 @@ export default function App() {
           </section>
         )}
 
-        {route.page === 'maps' && (
+        {allowedHere && route.page === 'maps' && (
           <section className="shell">
             <div className="report__head"><h1>خريطة الأخطار المتعددة</h1></div>
             <p className="report__summary">مؤشرات الخطر الزلزالي وقابلية الفيضان والخطر المركّب على مستوى النواحي، بتحليل هرمي (AHP).</p>
@@ -186,7 +218,7 @@ export default function App() {
           </section>
         )}
 
-        {route.page === 'projects' && (
+        {allowedHere && route.page === 'projects' && (
           <section className="shell">
             <div className="report__head"><h1>المشاريع الإحصائية</h1></div>
             <p className="report__summary">تقارير تفاعلية مبنية على بيانات ميدانية معتمدة.</p>
@@ -194,7 +226,7 @@ export default function App() {
           </section>
         )}
 
-        {route.page === 'project' && (
+        {allowedHere && route.page === 'project' && (
           <section className="shell">
             {projects.status === 'loading' && <div className="pending"><p>جارٍ التحميل…</p></div>}
             {projects.status !== 'loading' && !currentProject && (
@@ -216,7 +248,7 @@ export default function App() {
           </section>
         )}
 
-        {unknownOp && (
+        {allowedHere && unknownOp && (
           <section className="shell">
             <div className="pending">
               <h3>التقرير غير موجود</h3>
@@ -226,7 +258,7 @@ export default function App() {
           </section>
         )}
 
-        {(route.page === 'overview' || (route.page === 'ops' && !unknownOp)) && (
+        {allowedHere && (route.page === 'overview' || (route.page === 'ops' && !unknownOp)) && (
         <article className="shell">
           <div className="report__head">
             <h1>{isHome ? 'النظرة العامة' : `تقرير ${active.name}`}</h1>

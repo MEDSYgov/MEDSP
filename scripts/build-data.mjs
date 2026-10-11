@@ -25,6 +25,21 @@ XLSX.set_fs(fs);
 const root = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(root, '..', 'data');
 const outDir = path.join(root, '..', 'public', 'data');
+/*
+  البيانات السرية لا تُنشر كملفات عامة: تُكتب في server-data/ ويقدّمها
+  api/data بعد التحقق من حساب المستخدم وصلاحياته ومحافظاته.
+  العامة فقط (حدود الخريطة وشجرة المناطق) تبقى في public/data.
+*/
+const privDir = path.join(root, '..', 'server-data');
+const PUBLIC_FILES = new Set(['admin-areas.json', 'basemap.json']);
+/* تنظيف: أي ملف بيانات قديم سري في public/data يُحذف حتى لا يُنشر */
+if (fs.existsSync(outDir)) {
+  for (const f of fs.readdirSync(outDir)) if (f.endsWith('.json') && !PUBLIC_FILES.has(f)) fs.rmSync(path.join(outDir, f));
+}
+const outPath = (name) => {
+  fs.mkdirSync(PUBLIC_FILES.has(name) ? outDir : privDir, { recursive: true });
+  return path.join(PUBLIC_FILES.has(name) ? outDir : privDir, name);
+};
 
 const REF_FILE = 'syr_admin_boundaries.xlsx';
 
@@ -614,7 +629,7 @@ function run() {
 }
 
 function write(name, payload) {
-  const file = path.join(outDir, name);
+  const file = outPath(name);
   fs.writeFileSync(file, JSON.stringify(payload));
   const kb = (fs.statSync(file).size / 1024).toFixed(0);
   console.log(`  ✓ ${name} (${kb} كيلوبايت)`);
@@ -697,7 +712,7 @@ function buildRubble() {
     const PN = ['', 'المرحلة الأولى', 'المرحلة الثانية', 'المرحلة الثالثة'];
     for (const r of phases) r.sites = surveys.filter((x) => PN[x.p] === r.phase && norm(x.gov) === norm(r.gov)).length;
   } else if (fs.existsSync(planFile)) phases = JSON.parse(fs.readFileSync(planFile, 'utf8'));
-  fs.writeFileSync(path.join(outDir, 'rubble-transfer.json'), JSON.stringify({ title: 'مشروع ترحيل الأنقاض', phases, planAsOf: phases.asOf || null, surveys }));
+  fs.writeFileSync(outPath('rubble-transfer.json'), JSON.stringify({ title: 'مشروع ترحيل الأنقاض', phases, planAsOf: phases.asOf || null, surveys }));
   console.log(`  ✓ rubble-transfer.json (${surveys.length} استمارة، ${phases.length} صف خطة)`);
 }
 
@@ -728,7 +743,7 @@ function buildPipeline() {
       .map((k) => String(r[k] ?? '').split(/[\s,،]+/).map((u) => u.trim()).filter((u) => /^https?:\/\//.test(u))),
     folder: /^https?:\/\//.test(String(r['رابط مجلد الصور والوثائق'] ?? '').trim()) ? String(r['رابط مجلد الصور والوثائق']).trim() : '',
   })).filter((x) => x.stage && x.name);
-  fs.writeFileSync(path.join(outDir, 'rubble-pipeline.json'), JSON.stringify({ items }));
+  fs.writeFileSync(outPath('rubble-pipeline.json'), JSON.stringify({ items }));
   console.log(`  ✓ rubble-pipeline.json (${items.length} مشروعاً)`);
 }
 
@@ -758,7 +773,7 @@ function buildRegistry() {
     name: clean(r['اسم الجهة']), aliases: list(r['تسميات بديلة']), type: clean(r['نوع الجهة']),
     roles: list(r['الأدوار']), govs: list(r['المحافظات']), contact: clean(r['التواصل']), notes: clean(r['ملاحظات']),
   })).filter((e) => e.name);
-  fs.writeFileSync(path.join(outDir, 'rubble-registry.json'), JSON.stringify({ dumps, entities }));
+  fs.writeFileSync(outPath('rubble-registry.json'), JSON.stringify({ dumps, entities }));
   console.log(`  ✓ rubble-registry.json (${dumps.length} مكباً، ${entities.length} جهة في السجل)`);
 }
 
@@ -771,7 +786,7 @@ function buildDamage() {
     avgArea: n(r['متوسط مساحة المبنى (م²)']) || null, avgFloors: n(r['متوسط عدد الطوابق']) || null,
     source: clean(r['المصدر']), date: clean(r['تاريخ التقييم']).slice(0, 10), notes: clean(r['ملاحظات']),
   })).filter((r) => r.gov && (r.destroyed || r.severe || r.moderate || r.light));
-  fs.writeFileSync(path.join(outDir, 'rubble-damage.json'), JSON.stringify({ rows }));
+  fs.writeFileSync(outPath('rubble-damage.json'), JSON.stringify({ rows }));
   console.log(`  ✓ rubble-damage.json (${rows.length} سطر أضرار)`);
 }
 
@@ -784,7 +799,7 @@ function buildAdminAreas() {
   const seen = new Set();
   const communities = rows('syr_populatedplaces').map((r) => [clean(r.pcode), clean(r.featurename_ar) || clean(r.featurename_en), clean(r.adm3_pcode)])
     .filter((x) => x[0] && x[2] && !seen.has(x[0]) && seen.add(x[0]));
-  fs.writeFileSync(path.join(outDir, 'admin-areas.json'), JSON.stringify({ districts, subdistricts: subs, communities }));
+  fs.writeFileSync(outPath('admin-areas.json'), JSON.stringify({ districts, subdistricts: subs, communities }));
   console.log(`  ✓ admin-areas.json (${districts.length} منطقة، ${subs.length} ناحية، ${communities.length} قرية/بلدة)`);
 }
 
@@ -823,11 +838,19 @@ function buildAssessment() {
       });
     }
   }
-  fs.writeFileSync(path.join(outDir, 'rubble-assessment.json'), JSON.stringify({ sites }));
+  fs.writeFileSync(outPath('rubble-assessment.json'), JSON.stringify({ sites }));
   console.log(`  ✓ rubble-assessment.json (${sites.length} موقع، ${Math.round(sites.reduce((a, s) => a + s.vol, 0)).toLocaleString('en-US')} م³)`);
 }
 
+/* أسماء المحافظات ورموزها لتطبيق نطاق الحساب في api/data */
+function writeGovs() {
+  const wb = XLSX.readFile(path.join(dataDir, REF_FILE));
+  const govs = XLSX.utils.sheet_to_json(wb.Sheets.syr_admin1).map((r) => ({ code: clean(r.adm1_pcode), name: clean(r.adm1_name1) })).filter((g) => g.code);
+  fs.writeFileSync(outPath('govs.json'), JSON.stringify(govs));
+}
+
 run();
+writeGovs();
 buildAssessment();
 buildAdminAreas();
 buildRubble();

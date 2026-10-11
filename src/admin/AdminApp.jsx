@@ -80,9 +80,9 @@ function ProjectList({ projects, counts, onOpen, onCreate, onDelete }) {
     <div className="plist">
       <div className="plist__head">
         <h2>المشاريع الإحصائية</h2>
-        <button type="button" className="survey__navbtn survey__navbtn--primary" onClick={() => setAdding(!adding)}>
+        {onCreate && <button type="button" className="survey__navbtn survey__navbtn--primary" onClick={() => setAdding(!adding)}>
           {adding ? 'إلغاء' : '+ مشروع جديد'}
-        </button>
+        </button>}
       </div>
 
       {adding && (
@@ -156,8 +156,8 @@ function ProjectList({ projects, counts, onOpen, onCreate, onDelete }) {
               )}
               <div className="pcard__actions">
                 <button type="button" className="q-btn" onClick={() => onOpen(p.id)}>فتح</button>
-                <button type="button" className="q-btn q-btn--danger q-btn--sm"
-                  onClick={() => onDelete(p.id)}>حذف</button>
+                {onDelete && <button type="button" className="q-btn q-btn--danger q-btn--sm"
+                  onClick={() => onDelete(p.id)}>حذف</button>}
               </div>
             </article>
           );
@@ -169,13 +169,13 @@ function ProjectList({ projects, counts, onOpen, onCreate, onDelete }) {
 
 /* ---------------- محرر المشروع ---------------- */
 
-function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'build' }) {
+function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'build', reviewer = false }) {
   const areas = useAreas(basemap);
   const [project, setProject] = useState(null);
   const [surveys, setSurveys] = useState([]);
   const [activeSurvey, setActiveSurvey] = useState(null);
   const [responses, setResponses] = useState([]);
-  const [tab, setTab] = useState(initialTab);
+  const [tab, setTab] = useState(reviewer ? 'results' : initialTab);
   const [draft, setDraft] = useState(null);
   const [saved, setSaved] = useState(true);
   const [notice, setNotice] = useState('');
@@ -310,7 +310,7 @@ function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'bu
               {linked && <span className="tag tag--approved">مرتبط بتقرير «{linked.name}»</span>}
             </div>
           </div>
-          {linked ? (
+          {reviewer ? null : linked ? (
             <a className="pedit__publish is-live" href={linked.href} target="_blank" rel="noreferrer">
               فتح التقرير المرتبط ↗
             </a>
@@ -353,9 +353,9 @@ function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'bu
             {s.title}
           </button>
         ))}
-        <button type="button" className="pedit__addsurvey" onClick={addSurvey}>
+        {!reviewer && <button type="button" className="pedit__addsurvey" onClick={addSurvey}>
           + استبيان جديد
-        </button>
+        </button>}
       </div>}
 
       {!activeSurvey ? (
@@ -364,7 +364,7 @@ function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'bu
         <>
           <div className="pedit__tabs">
             <div className="pedit__seg" role="tablist">
-            {(isData ? DATA_TABS : TABS).map((t) => (
+            {(reviewer ? TABS.filter((t) => t.id === 'results') : isData ? DATA_TABS : TABS).map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -486,6 +486,28 @@ function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'bu
   );
 }
 
+/* جامع البيانات: الاستبيانات المسندة إليه للتعبئة فقط */
+function MySurveys() {
+  const [list, setList] = useState(null);
+  useEffect(() => { store.mySurveys().then(setList).catch(() => setList([])); }, []);
+  if (!list) return <p className="results__empty">جارٍ التحميل…</p>;
+  if (!list.length) return <div className="pending"><p>لا توجد استبيانات مسندة إلى حسابك بعد. تواصل مع مدير المنصة.</p></div>;
+  return (
+    <div className="plist">
+      <div className="plist__head"><h2>الاستبيانات المسندة إليّ</h2></div>
+      <div className="plist__grid">
+        {list.map((s) => (
+          <article key={s.id} className="pcard">
+            <h3>{s.title}</h3>
+            <p className="pcard__desc">{s.project}</p>
+            <div className="pcard__actions"><a className="survey__navbtn survey__navbtn--primary" href={`#/s/${s.id}`}>تعبئة استمارة جديدة</a></div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- الجذر ---------------- */
 
 export default function AdminApp({ basemap, me }) {
@@ -516,12 +538,15 @@ export default function AdminApp({ basemap, me }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const sections = [
-    { id: 'projects', label: 'المشاريع' },
-    { id: 'entities', label: 'الجهات العاملة' },
+  const reviewer = me.role === 'reviewer';
+  const collector = me.role === 'collector';
+  const sections = collector ? [{ id: 'mine', label: 'استبياناتي' }, { id: 'me', label: 'حسابي' }] : [
+    { id: 'projects', label: reviewer ? 'الاستبيانات المسندة إليّ' : 'المشاريع' },
+    ...(reviewer ? [] : [{ id: 'entities', label: 'الجهات العاملة' }]),
     ...(me.role === 'super_admin' ? [{ id: 'accounts', label: 'الحسابات' }] : []),
     { id: 'me', label: 'حسابي' },
   ];
+  useEffect(() => { if (collector) setSection('mine'); }, [collector]);
 
   return (
     <section className="shell admin">
@@ -537,12 +562,14 @@ export default function AdminApp({ basemap, me }) {
 
       {section === 'accounts' && me.role === 'super_admin' && <AccountsPanel me={me} />}
       {section === 'me' && <MyAccount me={me} />}
+      {section === 'mine' && <MySurveys />}
       {section === 'entities' && <EntitiesPanel />}
       {section === 'projects' && (open ? (
         <ProjectEditor
           projectId={open}
           basemap={basemap}
           initialTab={startTab}
+          reviewer={reviewer}
           onBack={() => { setOpen(null); setStartTab('build'); refresh(); }}
           onChanged={refresh}
         />
@@ -551,7 +578,7 @@ export default function AdminApp({ basemap, me }) {
           projects={projects}
           counts={counts}
           onOpen={setOpen}
-          onCreate={async (input) => {
+          onCreate={reviewer ? null : async (input) => {
             const p = await store.createProject(input);
             if (input.kind === 'data') {
               await store.createSurvey(p.id, { title: input.name, pages: [{ name: 'p1', title: 'البيانات', children: [] }] });
@@ -560,7 +587,7 @@ export default function AdminApp({ basemap, me }) {
             }
             refresh();
           }}
-          onDelete={async (id) => {
+          onDelete={reviewer ? null : async (id) => {
             if (!window.confirm('حذف المشروع مع كل استبياناته وإجاباته نهائياً؟')) return;
             await store.deleteProject(id); refresh();
           }}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import TemplateDownload from '../components/TemplateDownload';
 import Dropdown from '../components/Dropdown';
 import { DAMAGE, damageRubble } from './rubbleMethod';
+import { getData } from '../data/api';
 
 /*
   ربط بيانات الضرر بالأنقاض:
@@ -17,7 +18,7 @@ export default function DamagePanel({ surveys = [] }) {
   const [kinds, setKinds] = useState([]);
 
   useEffect(() => {
-    fetch('data/rubble-damage.json').then((r) => r.json()).then((d) => setRows(d.rows || [])).catch(() => setRows([]));
+    getData('rubble-damage').then((d) => setRows(d.rows || [])).catch(() => setRows([]));
   }, []);
 
   const list = useMemo(() => (rows || []).filter((r) =>

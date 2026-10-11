@@ -11,7 +11,7 @@
   بلا شبكة يتولاه صندوق الصادر في الصفحة نفسها.
 */
 
-const VERSION = 'medsp-v4';
+const VERSION = 'medsp-v5';
 
 /*
   ignoreVary: سكربتات Vite تُطلب بوضع crossorigin فتحمل ترويسة Origin،
@@ -57,6 +57,8 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  /* بوابة البيانات: خاصة بكل حساب، لا تُحفظ أبداً */
+  if (url.pathname.includes('/api/')) return;
 
   if (req.mode === 'navigate') {
     event.respondWith((async () => {

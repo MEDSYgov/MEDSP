@@ -1863,3 +1863,11 @@ a.pedit__publish { display: inline-flex; align-items: center; text-decoration: n
 .ent-row__roles span { font-size: 0.74rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--forest); color: var(--ivory-mist); }
 .ent-row__act { display: flex; gap: 6px; }
 @media (max-width: 760px) { .ent-row { grid-template-columns: minmax(0, 1fr); } }
+
+/* مستويات الوصول */
+.acc{display:grid;gap:14px;margin:6px 0 4px;padding:14px;border:1px dashed var(--edge-strong, rgba(0,0,0,.2));border-radius:12px}
+.acc__secs{border:0;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px 18px}
+.acc__secs legend{margin-bottom:6px;width:100%}
+.acc__chk{display:inline-flex;align-items:center;gap:6px;font-size:.95rem}
+.acc__title{margin:0 0 6px}
+.accounts__scope{font-size:.88rem;max-width:320px;line-height:1.6}

@@ -74,7 +74,7 @@ function ProjectsMenu({ projects, status, activeId }) {
   );
 }
 
-export default function MainNav({ route, ops, projects, projectsStatus }) {
+export default function MainNav({ route, ops, projects, projectsStatus, can = () => true }) {
   const [open, setOpen] = useState(null);
   const ref = useRef(null);
 
@@ -103,47 +103,47 @@ export default function MainNav({ route, ops, projects, projectsStatus }) {
     <nav className="categories mainnav" ref={ref} aria-label="التنقل الرئيسي">
       <div className="shell">
         <div className="mainnav__bar">
-          <a href={href.overview()}
+          {can('ops') && <a href={href.overview()}
             className={`categories__item${route.page === 'overview' ? ' is-active' : ''}`}
             aria-current={route.page === 'overview' ? 'page' : undefined}>
             النظرة العامة
-          </a>
+          </a>}
 
-          <button type="button"
+          {can('ops') && <button type="button"
             className={`categories__item mainnav__drop${route.page === 'ops' ? ' is-active' : ''}${open === 'ops' ? ' is-open' : ''}`}
             aria-expanded={open === 'ops'} aria-haspopup="true" aria-controls="menu-ops"
             onClick={() => toggle('ops')}>
             العمليات
             {currentOp && <span className="mainnav__here">{currentOp.name}</span>}
             <span className="mainnav__caret" aria-hidden="true" />
-          </button>
+          </button>}
 
-          <button type="button"
+          {can('projects') && <button type="button"
             className={`categories__item mainnav__drop${route.page === 'project' || route.page === 'projects' ? ' is-active' : ''}${open === 'projects' ? ' is-open' : ''}`}
             aria-expanded={open === 'projects'} aria-haspopup="true" aria-controls="menu-projects"
             onClick={() => toggle('projects')}>
             المشاريع
             {currentProject && <span className="mainnav__here">{currentProject.name}</span>}
             <span className="mainnav__caret" aria-hidden="true" />
-          </button>
+          </button>}
 
-          <a href={href.rubble()}
+          {can('rubble') && <a href={href.rubble()}
             className={`categories__item${route.page === 'rubble' ? ' is-active' : ''}`}
             aria-current={route.page === 'rubble' ? 'page' : undefined}>
             إدارة الأنقاض
-          </a>
+          </a>}
 
-          <a href={href.monthly()}
+          {can('monthly') && <a href={href.monthly()}
             className={`categories__item${route.page === 'monthly' ? ' is-active' : ''}`}
             aria-current={route.page === 'monthly' ? 'page' : undefined}>
             التقرير الشهري
-          </a>
+          </a>}
 
-          <a href={href.maps()}
+          {can('ops') && <a href={href.maps()}
             className={`categories__item${route.page === 'maps' ? ' is-active' : ''}`}
             aria-current={route.page === 'maps' ? 'page' : undefined}>
             الخرائط
-          </a>
+          </a>}
         </div>
       </div>
 

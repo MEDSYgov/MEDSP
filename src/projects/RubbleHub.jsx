@@ -12,6 +12,7 @@ import RubbleMapView from './RubbleMapView';
 import { fromResponse } from './RubbleTransfer';
 import { Entities, Dumps, isEntityRegistry, entitiesFromProject } from './RubbleRegistry';
 import { listPublishedProjects, listEntities, rubbleTransferFeed } from './store';
+import { getData } from '../data/api';
 
 /*
   إدارة الأنقاض — دورة كاملة في تبويب واحد:
@@ -199,7 +200,7 @@ export default function RubbleHub({ basemap, initial }) {
   useEffect(() => {
     /* السجل: قالب Excel + سجلات مشروع «سجل الجهات» المعتمدة في مساحة العمل (الأحدث يُضاف فوقه) */
     Promise.all([
-      fetch('data/rubble-registry.json').then((r) => r.json()).catch(() => ({ dumps: [], entities: [] })),
+      getData('rubble-registry').catch(() => ({ dumps: [], entities: [] })),
       listPublishedProjects().catch(() => []),
       listEntities().catch(() => []),
     ]).then(([file, projects, table]) => {
@@ -207,9 +208,9 @@ export default function RubbleHub({ basemap, initial }) {
       /* السجل الرسمي (جدول مساحة العمل) أخيراً حتى يغلب اسمه وتصنيفه */
       setRegistry({ dumps: file.dumps || [], entities: [...(file.entities || []), ...live, ...table] });
     });
-    fetch('data/rubble-pipeline.json').then((r) => r.json()).then(setPipe).catch(() => setPipe({ items: [] }));
+    getData('rubble-pipeline').then(setPipe).catch(() => setPipe({ items: [] }));
     Promise.all([
-      fetch('data/rubble-transfer.json').then((r) => r.json()).catch(() => ({ surveys: [] })),
+      getData('rubble-transfer').catch(() => ({ surveys: [] })),
       rubbleTransferFeed().catch(() => []),
     ]).then(([d, live]) => {
       const all = [...(d.surveys || []), ...live.map(fromResponse)];

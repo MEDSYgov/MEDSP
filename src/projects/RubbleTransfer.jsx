@@ -3,6 +3,7 @@ import Figure from '../components/Figure';
 import Dropdown from '../components/Dropdown';
 import SyriaMap from '../components/SyriaMap';
 import { rubbleTransferFeed } from './store';
+import { getData } from '../data/api';
 
 /*
   مشروع ترحيل الأنقاض — إدارة تقييم الأضرار والتعافي.
@@ -891,7 +892,7 @@ export default function RubbleTransfer({ basemap }) {
       استبيان المنصة. إن تعذّر الاتصال بقاعدة البيانات يبقى التقرير بالبيانات الأساسية.
     */
     Promise.all([
-      fetch('data/rubble-transfer.json').then((r) => r.json()),
+      getData('rubble-transfer'),
       rubbleTransferFeed().catch(() => []),
     ]).then(([base, live]) => setData({ ...base, live: live.length, surveys: [...base.surveys, ...live.map(fromResponse)] }))
       .catch(() => setError(true));

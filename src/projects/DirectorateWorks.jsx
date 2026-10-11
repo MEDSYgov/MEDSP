@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import SyriaMap from '../components/SyriaMap';
 import Dropdown from '../components/Dropdown';
+import { getData } from '../data/api';
 
 /*
   أعمال المديريات في إزالة الأنقاض — منفصلة تماماً عن المشاريع المشتركة.
@@ -44,7 +45,7 @@ export default function DirectorateWorks({ basemap, projSurveys = [], planRows =
   const [mode, setMode] = useState('dir');
   const [f, setF] = useState({ gov: [], area: [], town: [], ym: [] });
 
-  useEffect(() => { fetch('data/services.json').then((r) => r.json()).then(setSvc).catch(() => setSvc(false)); }, []);
+  useEffect(() => { getData('services').then(setSvc).catch(() => setSvc(false)); }, []);
 
   /* اسم المحافظة الموحّد من الخريطة */
   const canon = useMemo(() => {

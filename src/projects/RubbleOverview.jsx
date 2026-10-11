@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { damageRubble } from './rubbleMethod';
 import { archiveItems } from './RubbleGallery';
 import { buildDumps } from './RubbleRegistry';
+import { getData } from '../data/api';
 
 /* لمحة عامة (Overview) عن مشروع إدارة الأنقاض: كل المراحل في شاشة واحدة */
 const fmt = (n) => Math.round(Number(n) || 0).toLocaleString('en-US');
@@ -9,7 +10,7 @@ const short = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e4 ? `${Math
 
 export default function RubbleOverview({ plan = {}, planItems = [], surveys, pipe, registry, go }) {
   const [damage, setDamage] = useState([]);
-  useEffect(() => { fetch('data/rubble-damage.json').then((r) => r.json()).then((d) => setDamage(d.rows || [])).catch(() => {}); }, []);
+  useEffect(() => { getData('rubble-damage').then((d) => setDamage(d.rows || [])).catch(() => {}); }, []);
 
   const o = useMemo(() => {
     const sum = (l, k) => l.reduce((a, x) => a + (Number(x[k]) || 0), 0);

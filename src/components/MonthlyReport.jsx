@@ -4,6 +4,7 @@ import BarChart from './BarChart';
 import Donut from './Donut';
 import Dropdown from './Dropdown';
 import Icon from './Icon';
+import { getData } from '../data/api';
 
 /*
   التقرير الشهري: الأشكال الإحصائية التي كانت تُجهَّز يدوياً من Excel.
@@ -104,7 +105,7 @@ export default function MonthlyReport() {
   const [month, setMonth] = useState(null);
 
   useEffect(() => {
-    Promise.all(FEEDS.map((f) => fetch(`data/${f}.json`).then((r) => r.json())))
+    Promise.all(FEEDS.map((f) => getData(f)))
       .then((list) => setReps(Object.fromEntries(FEEDS.map((f, i) => [f, list[i]]))))
       .catch(() => setError(true));
   }, []);

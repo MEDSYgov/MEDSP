@@ -1,0 +1,9 @@
+{
+  "functions": {
+    "api/data.js": {
+      "includeFiles": "server-data/**",
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  }
+}
