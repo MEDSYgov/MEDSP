@@ -24,3 +24,8 @@ dist-ssr
 *.sw?
 public/data
 server-data
+
+# متغيرات البيئة — لا تُرفع أبداً
+.env
+.env.*
+!.env.example

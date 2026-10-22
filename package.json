@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "data": "node scripts/build-data.mjs",
-    "geo": "node scripts/build-geo.mjs"
+    "geo": "node scripts/build-geo.mjs",
+    "start": "node server/index.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

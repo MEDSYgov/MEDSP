@@ -11,7 +11,7 @@
   بلا شبكة يتولاه صندوق الصادر في الصفحة نفسها.
 */
 
-const VERSION = 'medsp-v5';
+const VERSION = 'medsp-v6';
 
 /*
   ignoreVary: سكربتات Vite تُطلب بوضع crossorigin فتحمل ترويسة Origin،
@@ -79,7 +79,8 @@ self.addEventListener('fetch', (event) => {
     أسماؤها ثابتة بلا بصمة، فعرض المحفوظ أولاً كان يقدّم بيانات قديمة
     للكود الجديد بعد كل نشر (مثل مرشّح بلا خيارات).
   */
-  if (url.pathname.includes('/data/') && url.pathname.endsWith('.json')) {
+  /* config.js يتغيّر مع .env على السيرفر، فيُعامل كملفات البيانات: الشبكة أولاً */
+  if ((url.pathname.includes('/data/') && url.pathname.endsWith('.json')) || url.pathname.endsWith('/config.js')) {
     event.respondWith((async () => {
       const c = await caches.open(VERSION);
       try {

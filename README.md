@@ -8,7 +8,7 @@
 
 ## التشغيل محلياً
 
-يتطلب Node.js إصدار 20 أو أحدث.
+يتطلب Node.js إصدار 20 أو أحدث. انسخ `.env.example` باسم `.env.local` وضع فيه القيم.
 
 ```bash
 npm install
@@ -53,7 +53,9 @@ git push -u origin main
    - **Install Command:** `npm install`
 4. اضغط **Deploy**.
 
-لا يحتاج المشروع أي متغيرات بيئة، ولا أي ملف إعدادات إضافي.
+يحتاج المشروع متغيرَي بيئة في إعدادات Vercel (Settings → Environment Variables): `SUPABASE_URL` و`SUPABASE_KEY`.
+
+للتشغيل على سيرفر الوزارة انظر [DEPLOY.md](DEPLOY.md).
 
 ### إن ظهر خطأ
 

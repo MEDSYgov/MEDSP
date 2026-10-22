@@ -10,13 +10,14 @@ import { createClient } from '@supabase/supabase-js';
 
   لا يوضع هنا أبداً مفتاح service_role — ذاك يتجاوز كل الحماية.
 
-  عند الانتقال إلى الخادم الداخلي: تُغيّر القيمتان عبر متغيرات البيئة.
+  القيمتان تُقرآن وقت التشغيل من ملف .env على السيرفر (انظر src/config.js).
 */
 
-const URL = import.meta.env.VITE_SUPABASE_URL
-  || 'https://wyyvsntytjtcrmllptfs.supabase.co';
-const KEY = import.meta.env.VITE_SUPABASE_KEY
-  || 'sb_publishable_HRhdNiHxp46Zj7014bVbzg_sTqfLyKX';
+import { SUPABASE_URL, SUPABASE_KEY, configMissing } from '../config.js';
+
+/* عند نقص الإعدادات لا تنهار الصفحة: تفتح، وتفشل طلبات البيانات برسالة واضحة في الكونسول */
+const URL = configMissing ? 'http://config-missing.invalid' : SUPABASE_URL;
+const KEY = configMissing ? 'config-missing' : SUPABASE_KEY;
 
 export const supabase = createClient(URL, KEY, {
   auth: { persistSession: true, autoRefreshToken: true },

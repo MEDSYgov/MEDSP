@@ -1,0 +1,12 @@
+# منصة مديرية التخطيط والإحصاء
+#   التشغيل:            docker compose up -d --build
+#   بعد تعديل .env:      docker compose restart medsp
+#   بعد بيانات شهر جديد: docker compose up -d --build
+services:
+  medsp:
+    build: .
+    container_name: medsp
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:3000:3000"   # متاح لـ Nginx على السيرفر فقط، لا من الشبكة مباشرة

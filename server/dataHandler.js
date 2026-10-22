@@ -9,8 +9,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 
-const SB_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://wyyvsntytjtcrmllptfs.supabase.co';
-const SB_KEY = process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_KEY || 'sb_publishable_HRhdNiHxp46Zj7014bVbzg_sTqfLyKX';
+/* من ملف .env (أو متغيرات بيئة Vercel) — لا قيم مكتوبة في الكود */
+const SB_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const SB_KEY = process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_KEY;
 const DIR = process.env.MEDSP_DATA_DIR || path.join(process.cwd(), 'server-data');
 
 const OPS = ['overview', 'summary', 'fire', 'ambulance', 'traffic', 'drowning', 'cold-rescue', 'animal-rescue', 'hazard-marking', 'attacks', 'evacuation'];
@@ -29,6 +30,7 @@ function load(name) {
 }
 
 async function whoAmI(token) {
+  if (!SB_URL || !SB_KEY) throw new Error('SUPABASE_URL / SUPABASE_KEY غير معرّفين في .env');
   const r = await fetch(`${SB_URL}/rest/v1/rpc/my_role`, {
     method: 'POST', body: '{}',
     headers: { apikey: SB_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -109,6 +111,7 @@ export default async function handler(req, res) {
     }
     return send(req, res, 200, data);
   } catch (e) {
+    console.error('[MEDSP api/data]', e.message);
     return send(req, res, 500, { error: 'تعذّر تحميل البيانات' });
   }
 }
