@@ -1,0 +1,31 @@
+# Install at /etc/medsp/staging.conf. Staging MUST use an independent Supabase
+# instance/database, credentials and API endpoint, never production's DB.
+TARGET_BRANCH=staging
+DEPLOY_ROOT=/home/udeploy/datat-srv/medsp/staging
+BACKUP_ROOT=/home/udeploy/datat-srv/backup
+APP_ENV_FILE=/home/udeploy/datat-srv/medsp/staging/application.env
+APP_PROJECT=medsp-staging
+APP_BIND_IP=127.0.0.1
+APP_PORT=3001
+
+# These names/paths are examples; provision the independent stack beforehand.
+DB_CONTAINER=supabase-staging-db
+DB_NAME=postgres
+DB_USER=supabase_admin
+DB_CONFIG_PATH=/etc/postgresql-custom
+SUPABASE_CONFIG_FILES=(
+  /home/udeploy/data-srv/supabase-staging/docker-compose.yml
+  /home/udeploy/data-srv/supabase-staging/.env
+)
+
+# New application environment, with an already prepared staging database.
+INITIAL_PROJECT_DIR=''
+INITIAL_CONTAINER=''
+BOOTSTRAP_EMPTY=true
+
+SUPABASE_STORAGE_MODE=CHOOSE_UNUSED_OR_FILESYSTEM_OR_EXTERNAL
+SUPABASE_STORAGE_PATH=/home/udeploy/data-srv/supabase-staging/volumes/storage
+PUBLIC_HEALTH_URL=''
+WAIT_SECONDS=180
+MIN_FREE_GIB=10
+MIGRATIONS_BACKWARD_COMPATIBLE=false
