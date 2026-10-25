@@ -10,3 +10,15 @@ services:
     env_file: .env
     ports:
       - "127.0.0.1:3000:3000"   # متاح لـ Nginx على السيرفر فقط، لا من الشبكة مباشرة
+    environment:
+      PORT: "3000"
+
+    extra_hosts:
+      - "dps-stg.med.gov.sy:10.81.180.240"
+
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
