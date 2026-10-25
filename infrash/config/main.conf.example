@@ -1,0 +1,41 @@
+# Administrator-owned Bash configuration. Install at /etc/medsp/main.conf.
+# Replace every server-specific path/name after inspecting the actual server.
+TARGET_BRANCH=main
+DEPLOY_ROOT=/home/udeploy/datat-srv/medsp/main
+BACKUP_ROOT=/home/udeploy/datat-srv/backup
+APP_ENV_FILE=/home/udeploy/datat-srv/medsp/main/application.env
+APP_PROJECT=medsp-main
+APP_BIND_IP=127.0.0.1
+APP_PORT=3000
+
+# Existing production Supabase stack; no database replacement or major upgrade.
+DB_CONTAINER=supabase-db
+DB_NAME=postgres
+DB_USER=supabase_admin
+DB_CONFIG_PATH=/etc/postgresql-custom
+SUPABASE_CONFIG_FILES=(
+  /home/udeploy/data-srv/supabase/docker-compose.yml
+  /home/udeploy/data-srv/supabase/.env
+  # Include any Compose overrides, gateway configs, and Edge Function source.
+)
+
+# First adoption ONLY: actual currently deployed application directory/container.
+# Must not contain DEPLOY_ROOT/BACKUP_ROOT. New APP_PROJECT must differ from old.
+INITIAL_PROJECT_DIR=/home/udeploy/data-srv/MEDSP
+INITIAL_CONTAINER=medsp
+BOOTSTRAP_EMPTY=false
+
+# Choose exactly one: unused / filesystem / external. This placeholder blocks
+# deployment until the storage backup scope is made explicit.
+SUPABASE_STORAGE_MODE=CHOOSE_UNUSED_OR_FILESYSTEM_OR_EXTERNAL
+SUPABASE_STORAGE_PATH=/home/udeploy/data-srv/supabase/volumes/storage
+
+# Optional full route check from the application server, ending in /healthz.
+# Example: https://your-real-platform-domain/healthz or a VPN/internal URL.
+PUBLIC_HEALTH_URL=''
+WAIT_SECONDS=180
+MIN_FREE_GIB=10
+
+# Default: auto app rollback only when zero migrations were applied. Set true
+# only if ALL future migrations are reviewed for compatibility with the old app.
+MIGRATIONS_BACKWARD_COMPATIBLE=false
