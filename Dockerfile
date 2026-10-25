@@ -13,7 +13,7 @@ RUN rm -f .env && npm run build
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000
-COPY --from=build /app/package.json ./
+COPY --from=build --chown=node:node /app/package.json ./
 COPY --from=build --chown=node:node /app/server ./server
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/server-data ./server-data
