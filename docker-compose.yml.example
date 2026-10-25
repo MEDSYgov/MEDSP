@@ -2,6 +2,9 @@
 #   التشغيل:            docker compose up -d --build
 #   بعد تعديل .env:      docker compose restart medsp
 #   بعد بيانات شهر جديد: docker compose up -d --build
+
+# Copy docker-compose.yml.example to docker-compose.yml and edit extra_host
+
 services:
   medsp:
     build: .
@@ -14,7 +17,7 @@ services:
       PORT: "3000"
 
     extra_hosts:
-      - "dps-stg.med.gov.sy:10.81.180.240"
+      - "sub-domain.example.com:ip proxy server" # edit info for subdomain && ip proxy
 
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
