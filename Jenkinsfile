@@ -57,6 +57,14 @@ pipeline {
                     env.COMMIT_SUBJECT = sh(returnStdout: true,
                         script: 'git -c log.showSignature=false show -s --format=%s HEAD').trim()
                     env.INFRASH_RUN_ID = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}-${env.GIT_COMMIT.take(12)}"
+                    def branchLabel = env.BRANCH_NAME?.toUpperCase() ?: 'UNKNOWN'
+                    def shortCommit = env.GIT_COMMIT?.take(8) ?: 'UNKNOWN'
+
+                    currentBuild.displayName =
+                        "#${env.BUILD_NUMBER} | ${branchLabel} | RUNNING"
+
+                    currentBuild.description =
+                        "Commit: ${shortCommit} | CI/CD deployment in progress"
                 }
             }
         }
@@ -102,6 +110,15 @@ post {
         script {
             env.DEPLOY_RESULT = currentBuild.currentResult
             env.BUILD_DURATION_MILLIS = "${currentBuild.duration}"
+            def resultLabel = currentBuild.currentResult ?: 'UNKNOWN'
+            def branchLabel = env.BRANCH_NAME?.toUpperCase() ?: 'UNKNOWN'
+            def shortCommit = env.GIT_COMMIT?.take(8) ?: 'UNKNOWN'
+
+            currentBuild.displayName =
+                "#${env.BUILD_NUMBER} | ${branchLabel} | ${resultLabel}"
+
+            currentBuild.description =
+                "Commit: ${shortCommit} | MEDSP deployment | ${resultLabel}"
 
             try {
                 withCredentials([string(
