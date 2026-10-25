@@ -74,10 +74,18 @@ try {
   assert(response.status === 200, 'SUPABASE_AUTH_GATEWAY_FAILED', response.status);
 
   stage = 'SUPABASE_REST';
-  response = await request(`${base}/rest/v1/`, { headers });
-  assert(response.status === 200
-    && /json/i.test(response.headers.get('content-type') || ''),
-  'SUPABASE_REST_GATEWAY_FAILED', response.status);
+
+  response = await request(
+    `${base}/rest/v1/projects?select=id&limit=0`,
+    { headers: { ...headers, Accept: 'application/json' } }
+  );
+
+  assert(
+    response.status === 200 &&
+    /json/i.test(response.headers.get('content-type') || ''),
+    'SUPABASE_REST_GATEWAY_FAILED',
+    response.status
+  );
 
   console.log('PASS: application, configuration, protected data, dataset, Supabase Auth and REST.');
 } catch (error) {
