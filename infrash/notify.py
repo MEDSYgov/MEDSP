@@ -256,10 +256,11 @@ def make_payload(state: dict[str, Any]) -> dict[str, Any]:
             )
 
         if state.get('error_summary'):
+            error_text = plain(state.get('error_summary'), 300).replace('`', "'")
             lines.extend([
                 '',
                 '**⚠️ تفاصيل الخطأ**',
-                f'```text\n{plain(state.get("error_summary"), 300).replace("```", "'''")}\n```'
+                f'```text\n{error_text}\n```'
             ])
         elif status != 'SUCCESS':
             lines.extend([
