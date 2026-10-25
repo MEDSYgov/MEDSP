@@ -38,7 +38,7 @@ pipeline {
         }
 
         stage('Checkout') {
-            options { timeout(time: 15, unit: 'MINUTES') }
+            options { timeout(time: 6, unit: 'MINUTES') }
             steps {
                 script { env.LAST_PHASE = 'Checkout' }
                 deleteDir()
@@ -67,7 +67,7 @@ pipeline {
             options { lock(resource: 'medsp-host-deploy') }
             stages {
                 stage('Build') {
-                    options { timeout(time: 60, unit: 'MINUTES') }
+                    options { timeout(time: 6, unit: 'MINUTES') }
                     steps {
                         script { env.LAST_PHASE = 'Build' }
                         sh 'bash infrash/build.sh'
@@ -97,42 +97,110 @@ pipeline {
         }
     }
 
-    post {
-        always {
-            script {
-                // A missing checkout must not prevent notification. The bootstrap
-                // script is installed by the administrator outside this workspace.
-                env.DEPLOY_RESULT = currentBuild.currentResult
-                env.BUILD_DURATION_SECONDS =
-                    ((System.currentTimeMillis() - currentBuild.startTimeInMillis) / 1000).toLong().toString()
-                try {
-                    withCredentials([string(credentialsId: 'medsp-discord-webhook',
-                                            variable: 'DISCORD_WEBHOOK_URL')]) {
-                        int rc = sh(returnStatus: true, script: '''
-                            set +x
-                            bash /opt/medsp-ci/verification.sh notify
-                        ''')
-                        if (rc != 0) {
-                            echo 'WARNING: Discord notification was not delivered. Deployment result is unchanged.'
-                        }
-                    }
-                } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException interrupted) {
-                    // Respect a deliberate interruption of this post action.
-                    throw interrupted
-                } catch (Exception ignored) {
-                    echo 'WARNING: Notification bootstrap or credential was unavailable. Deployment result is unchanged.'
-                }
+post {
+    always {
+        script {
+            try {
+                def result = currentBuild.currentResult
+                def duration = currentBuild.durationString
 
-                try {
-                    // Never archive credentials, .env files, backups or raw logs.
-                    archiveArtifacts artifacts: '.infrash-report.json',
-                        allowEmptyArchive: true, fingerprint: false
-                } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException interrupted) {
-                    throw interrupted
-                } catch (Exception ignored) {
-                    echo 'WARNING: Sanitized deployment report could not be archived.'
+                withEnv([
+                    "MEDSP_RESULT=${result}",
+                    "MEDSP_DURATION=${duration}"
+                ]) {
+                    withCredentials([
+                        string(
+                            credentialsId: 'medsp-discord-webhook',
+                            variable: 'DISCORD_WEBHOOK_URL'
+                        )
+                    ]) {
+                        sh '''
+                            set +x
+                            python3 - <<'PY'
+import json
+import os
+import urllib.request
+
+status = os.environ["MEDSP_RESULT"]
+
+icons = {
+    "SUCCESS": "✅",
+    "FAILURE": "❌",
+    "ABORTED": "🛑",
+    "UNSTABLE": "⚠️"
+}
+
+message = {
+    "content": (
+        f"{icons.get(status, 'ℹ️')} MEDSP Deployment: {status}\\n"
+        f"Branch: {os.environ.get('BRANCH_NAME', 'unknown')}\\n"
+        f"Build: {os.environ.get('BUILD_NUMBER', 'unknown')}\\n"
+        f"Duration: {os.environ['MEDSP_DURATION']}\\n"
+        f"Details: {os.environ.get('BUILD_URL', '')}"
+    )
+}
+
+body = json.dumps(message).encode("utf-8")
+
+request = urllib.request.Request(
+    os.environ["DISCORD_WEBHOOK_URL"],
+    data=body,
+    headers={"Content-Type": "application/json"},
+    method="POST"
+)
+
+with urllib.request.urlopen(request, timeout=6) as response:
+    if response.status not in (200, 204):
+        raise RuntimeError("Discord notification failed")
+
+print("Discord notification sent.")
+PY
+                        '''
+                    }
                 }
+            } catch (Exception err) {
+                echo "Discord notification failed: ${err.getClass().getSimpleName()}"
             }
         }
     }
+}
+    
+//    post {
+//        always {
+//            script {
+//                // A missing checkout must not prevent notification. The bootstrap
+//                // script is installed by the administrator outside this workspace.
+//                env.DEPLOY_RESULT = currentBuild.currentResult
+//                env.BUILD_DURATION_SECONDS =
+//                    ((System.currentTimeMillis() - currentBuild.startTimeInMillis) / 1000).toLong().toString()
+//                try {
+//                    withCredentials([string(credentialsId: 'medsp-discord-webhook',
+//                                            variable: 'DISCORD_WEBHOOK_URL')]) {
+//                        int rc = sh(returnStatus: true, script: '''
+//                            set +x
+//                            bash /opt/medsp-ci/verification.sh notify
+//                        ''')
+//                        if (rc != 0) {
+//                            echo 'WARNING: Discord notification was not delivered. Deployment result is unchanged.'
+//                        }
+//                    }
+//                } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException interrupted) {
+//                    // Respect a deliberate interruption of this post action.
+//                    throw interrupted
+//                } catch (Exception ignored) {
+//                    echo 'WARNING: Notification bootstrap or credential was unavailable. Deployment result is unchanged.'
+//                }
+//
+//                try {
+//                    // Never archive credentials, .env files, backups or raw logs.
+//                    archiveArtifacts artifacts: '.infrash-report.json',
+//                        allowEmptyArchive: true, fingerprint: false
+//                } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException interrupted) {
+//                    throw interrupted
+//                } catch (Exception ignored) {
+//                    echo 'WARNING: Sanitized deployment report could not be archived.'
+//                }
+//            }
+//        }
+//    }
 }
