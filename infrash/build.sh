@@ -6,6 +6,52 @@ install_traps
 operation_lock
 CURRENT_STEP=build-preflight
 preflight
+: "${PROXY_HOSTNAME:?Set PROXY_HOSTNAME in the environment-specific .conf}"
+: "${PROXY_IP:?Set PROXY_IP in the environment-specific .conf}"
+
+python3 - "$PROXY_HOSTNAME" "$PROXY_IP" "$APP_ENV_FILE" <<'PY'
+import ipaddress
+import pathlib
+import re
+import sys
+import urllib.parse
+
+host, address, env_path = sys.argv[1:]
+label = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+if len(host) > 253 or not re.fullmatch(rf"{label}(?:\.{label})+", host):
+    raise SystemExit("PROXY_HOSTNAME must be a DNS hostname, without a scheme or path.")
+try:
+    ipaddress.ip_address(host)
+except ValueError:
+    pass
+else:
+    raise SystemExit("PROXY_HOSTNAME must be a DNS hostname, not an IP address.")
+try:
+    ipaddress.ip_address(address)
+except ValueError:
+    raise SystemExit("PROXY_IP must be a confirmed IPv4 or IPv6 address.") from None
+
+values = {}
+for line in pathlib.Path(env_path).read_text(encoding="utf-8").splitlines():
+    line = line.strip()
+    if not line or line.startswith("#"):
+        continue
+    if "=" not in line:
+        raise SystemExit("Use KEY=value lines in the runtime environment file.")
+    key, value = line.split("=", 1)
+    values[key.strip()] = value.strip()
+try:
+    url = urllib.parse.urlsplit(values.get("SUPABASE_URL", ""))
+    configured_host = url.hostname
+except ValueError:
+    raise SystemExit("SUPABASE_URL is invalid.") from None
+if url.scheme not in ("http", "https") or not configured_host:
+    raise SystemExit("SUPABASE_URL must be an absolute HTTP(S) URL.")
+if configured_host.lower() != host.lower():
+    raise SystemExit("PROXY_HOSTNAME must match the hostname in SUPABASE_URL.")
+print("PASS: proxy configuration syntax and Supabase hostname match.")
+PY
+
 need git
 [[ ! -f "$DEPLOY_ROOT/deployment-incomplete" ]] || die 'An earlier deployment needs review; see deployment-incomplete.'
 [[ ! -e "$RELEASE_DIR" ]] || die 'Run ID already exists. Use a new build/run ID.'
@@ -21,7 +67,7 @@ state_set error_summary ''
 
 mkdir -p "$RELEASE_DIR/source"
 git -C "$SOURCE_DIR" archive "$COMMIT" | tar -xf - -C "$RELEASE_DIR/source"
-[[ -f "$RELEASE_DIR/source/infrash/compose.app.yml" && -f "$RELEASE_DIR/source/infrash/migrations.py" ]] || die 'Commit infrash and Jenkinsfile before starting.'
+[[ -f "$RELEASE_DIR/source/docker-compose.yml.example" && -f "$RELEASE_DIR/source/infrash/migrations.py" ]] || die 'Commit the canonical Compose file and infrash before starting.'
 # Runtime configuration is deliberately outside the Docker build context.
 install -m 600 "$APP_ENV_FILE" "$RELEASE_DIR/runtime.env"
 python3 - "$RELEASE_DIR/source" "$RELEASE_DIR/runtime.env" <<'PY'
@@ -55,13 +101,27 @@ tag_suffix="$(printf '%s' "$INFRASH_RUN_ID" | sha256sum | cut -c1-12)"
 image="medsp-local:${TARGET_BRANCH}-${COMMIT:0:12}-${tag_suffix}"
 say "Building ${COMMIT} using the repository Dockerfile."
 docker build --pull --label "org.opencontainers.image.revision=$COMMIT" \
-    --label 'org.opencontainers.image.source=https://github.com/malikmehmetoglu-spec/MEDSP' \
+    --label 'org.opencontainers.image.source=https://github.com/MEDSYgov/MEDSP' \
     --tag "$image" --file "$RELEASE_DIR/source/Dockerfile" "$RELEASE_DIR/source"
 image_id="$(docker image inspect --format '{{.Id}}' "$image")"
-python3 - "$RELEASE_DIR/release.json" "$image" "$image_id" "$COMMIT" "$APP_PROJECT" "$APP_PORT" "$APP_BIND_IP" "$TARGET_BRANCH" <<'PY'
-import json, sys
-p,*v=sys.argv[1:]
-with open(p,'w') as f: json.dump(dict(zip(('image','image_id','commit','project','port','bind','branch'),v)),f,indent=2)
+python3 - "$RELEASE_DIR/release.json" "$image" "$image_id" "$COMMIT" \
+    "$APP_PROJECT" "$APP_PORT" "$APP_BIND_IP" "$TARGET_BRANCH" \
+    "$PROXY_HOSTNAME" "$PROXY_IP" <<'PY'
+import json
+import sys
+
+filename, *values = sys.argv[1:]
+keys = (
+    "image", "image_id", "commit", "project", "port", "bind", "branch",
+    "proxy_hostname", "proxy_ip",
+)
+if len(values) != len(keys):
+    raise SystemExit("Unexpected release metadata arguments.")
+document = dict(zip(keys, values))
+document["compose_file"] = "docker-compose.yml.example"
+with open(filename, "w", encoding="utf-8") as handle:
+    json.dump(document, handle, indent=2)
+    handle.write("\n")
 PY
 compose_release "$RELEASE_DIR" config --quiet
 state_set image "$image"

@@ -100,71 +100,44 @@ pipeline {
 post {
     always {
         script {
+            env.DEPLOY_RESULT = currentBuild.currentResult
+            env.BUILD_DURATION_MILLIS = "${currentBuild.duration}"
+
             try {
-                def result = currentBuild.currentResult
-                def duration = currentBuild.durationString
-
-                withEnv([
-                    "MEDSP_RESULT=${result}",
-                    "MEDSP_DURATION=${duration}"
-                ]) {
-                    withCredentials([
-                        string(
-                            credentialsId: 'medsp-discord-webhook',
-                            variable: 'DISCORD_WEBHOOK_URL'
-                        )
-                    ]) {
-                        sh '''
-                            set +x
-                            python3 - <<'PY'
-import json
-import os
-import urllib.request
-
-status = os.environ["MEDSP_RESULT"]
-
-icons = {
-    "SUCCESS": "✅",
-    "FAILURE": "❌",
-    "ABORTED": "🛑",
-    "UNSTABLE": "⚠️"
-}
-
-message = {
-    "content": (
-        f"{icons.get(status, 'ℹ️')} MEDSP Deployment: {status}\\n"
-        f"Branch: {os.environ.get('BRANCH_NAME', 'unknown')}\\n"
-        f"Build: {os.environ.get('BUILD_NUMBER', 'unknown')}\\n"
-        f"Duration: {os.environ['MEDSP_DURATION']}\\n"
-        f"Details: {os.environ.get('BUILD_URL', '')}"
-    )
-}
-
-body = json.dumps(message).encode("utf-8")
-
-request = urllib.request.Request(
-    os.environ["DISCORD_WEBHOOK_URL"],
-    data=body,
-    headers={"Content-Type": "application/json"},
-    method="POST"
-)
-
-with urllib.request.urlopen(request, timeout=6) as response:
-    if response.status not in (200, 204):
-        raise RuntimeError("Discord notification failed")
-
-print("Discord notification sent.")
-PY
-                        '''
+                withCredentials([string(
+                    credentialsId: 'medsp-discord-webhook',
+                    variable: 'DISCORD_WEBHOOK_URL'
+                )]) {
+                    int rc = sh(returnStatus: true, script: '''
+                        set +x
+                        BUILD_DURATION_SECONDS="$(python3 -c 'import os; print(max(0, int(os.environ["BUILD_DURATION_MILLIS"])) // 1000)')"
+                        export BUILD_DURATION_SECONDS
+                        bash /opt/medsp-ci/verification.sh notify
+                    ''')
+                    if (rc != 0) {
+                        echo 'WARNING: Discord delivery failed; deployment result is unchanged.'
                     }
                 }
-            } catch (Exception err) {
-                echo "Discord notification failed: ${err.getClass().getSimpleName()}"
+            } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException interrupted) {
+                throw interrupted
+            } catch (Exception ignored) {
+                echo 'WARNING: Discord notification unavailable; deployment result is unchanged.'
+            }
+
+            try {
+                if (env.INFRASH_RUN_ID && fileExists('.infrash-report.json')) {
+                    archiveArtifacts artifacts: '.infrash-report.json',
+                        allowEmptyArchive: true, fingerprint: false
+                }
+            } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException interrupted) {
+                throw interrupted
+            } catch (Exception ignored) {
+                echo 'WARNING: Sanitized deployment report could not be archived.'
             }
         }
     }
 }
-    
+
 //    post {
 //        always {
 //            script {

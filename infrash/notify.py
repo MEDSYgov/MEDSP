@@ -29,7 +29,7 @@ MAX_RESPONSE_BYTES = 64 * 1024
 REQUEST_TIMEOUT = 10
 MAX_ATTEMPTS = 3
 MAX_RETRY_DELAY = 5
-REPOSITORY_URL = 'https://github.com/malikmehmetoglu-spec/MEDSP'
+REPOSITORY_URL = 'https://github.com/MEDSYgov/MEDSP'
 
 STATUSES = {
     'SUCCESS': ('✅', 'ناجح', 0x2ECC71, 'اكتمل النشر واجتازت الخدمة فحوصات التحقق.'),
