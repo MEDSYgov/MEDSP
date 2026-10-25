@@ -14,9 +14,9 @@ FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000
 COPY --from=build /app/package.json ./
-COPY --from=build /app/server ./server
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/server-data ./server-data
+COPY --from=build --chown=node:node /app/server ./server
+COPY --from=build --chown=node:node /app/dist ./dist
+COPY --from=build --chown=node:node /app/server-data ./server-data
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://127.0.0.1:3000/healthz || exit 1
