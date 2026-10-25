@@ -201,57 +201,101 @@ def make_payload(state: dict[str, Any]) -> dict[str, Any]:
     if commit:
         links.append(f'[التعديل {commit[:12]}]({REPOSITORY_URL}/commit/{commit})')
 
-    fields: list[dict[str, Any]] = []
+        def ltr(value: str) -> str:
+            """Keep Latin text, URLs and numbers together in Arabic Discord messages."""
+            return '\u2066' + value + '\u2069'
 
-    def field(name: str, value: str, inline: bool = False) -> None:
-        fields.append({'name': name, 'value': truncate(value, 1024) or 'غير متاح', 'inline': inline})
+        def line(icon: str, title: str, value: str) -> str:
+            return f'{icon} **{title}:** {ltr(value)}'
 
-    field('الحالة', f'{symbol} **{label}**', True)
-    field('البيئة / الفرع', f'{markdown(environment, 60)} / {markdown(branch, 60)}', True)
-    field('المرحلة الأخيرة', markdown(phase, 100), True)
-    field('صاحب التعديل', markdown(env.get('COMMIT_AUTHOR'), 140), True)
-    field('بريده المسجل في Git', markdown(env.get('COMMIT_AUTHOR_EMAIL'), 180), True)
-    field('مشغّل النشر / مصدر التشغيل', markdown(env.get('TRIGGER_ACTOR'), 180))
-    field('رسالة التعديل', markdown(env.get('COMMIT_SUBJECT'), 300))
-    field(f'وقت تقرير النشر ({local_label})', local.isoformat(timespec='seconds'), True)
-    field('المدة (ساعة:دقيقة:ثانية)', duration_label(env.get('BUILD_DURATION_SECONDS', '')), True)
-    field('النسخ الاحتياطي', state_word(state.get('backup_status')), True)
-    if state.get('backup_path'):
-        field('مسار النسخة الاحتياطية', markdown(state.get('backup_path'), 240))
-    migrations = state_word(state.get('migration_status'))
-    count = state.get('migration_count')
-    # Shell state_set stores values as JSON strings; accept its digit strings
-    # while rejecting booleans, negatives, fractions and malformed values.
-    if isinstance(count, str):
-        count_text = count.strip()
-        count = int(count_text) if re.fullmatch(r'[0-9]{1,100}', count_text) else None
-    if isinstance(count, int) and not isinstance(count, bool) and count >= 0:
-        migrations += f' · عدد الترحيلات: {count}'
-    field('ترحيلات قاعدة البيانات', migrations, True)
-    field('التحقق', state_word(state.get('verification_status')), True)
-    field('استعادة التطبيق السابق', state_word(state.get('rollback_status'), 'لم تُطلب'), True)
-    if state.get('image'):
-        field('صورة التطبيق', markdown(state.get('image'), 180))
-    if state.get('release_dir'):
-        field('مجلد الإصدار', markdown(state.get('release_dir'), 220))
-    if state.get('error_summary'):
-        field('ملخص الخطأ', markdown(state.get('error_summary'), 400))
-    elif status != 'SUCCESS':
-        field('ملخص الخطأ', 'لم يتوفر ملخص محلي؛ راجع مرحلة Jenkins الأخيرة وسجل العملية.')
-    if links:
-        field('روابط المتابعة', ' • '.join(links))
+        branch_text = markdown(branch, 60)
+        environment_text = markdown(environment, 60)
+        phase_text = markdown(phase, 100)
 
-    embed: dict[str, Any] = {
-        'title': f'MEDSP — {label}',
-        'description': description,
-        'color': color,
-        'timestamp': now.isoformat(timespec='seconds').replace('+00:00', 'Z'),
-        'fields': fields,
-        'footer': {'text': f'Jenkins #{plain(env.get("BUILD_NUMBER"), 30) or "?"} · '
-                           f'{plain(env.get("JOB_NAME"), 100) or "MEDSP"}'},
-    }
-    if job_url:
-        embed['url'] = job_url
+        backup = state_word(state.get('backup_status'))
+        migrations = state_word(state.get('migration_status'))
+        verification = state_word(state.get('verification_status'))
+        rollback = state_word(state.get('rollback_status'), 'لم تُطلب')
+
+        count = state.get('migration_count')
+        if isinstance(count, str) and re.fullmatch(r'[0-9]{1,100}', count.strip()):
+            count = int(count.strip())
+
+        if isinstance(count, int) and not isinstance(count, bool) and count >= 0:
+            migrations += f' ({count})'
+
+        lines = [
+            f'{symbol} **{description}**',
+            '',
+            '**📋 معلومات التشغيل**',
+            line('🌿', 'الفرع', branch_text),
+            line('🏷️', 'البيئة', environment_text),
+            line('🔢', 'رقم البناء', markdown(env.get('BUILD_NUMBER'), 30)),
+            line('👤', 'منفّذ التشغيل', markdown(env.get('TRIGGER_ACTOR'), 100)),
+            line('🧑‍💻', 'صاحب التعديل', markdown(env.get('COMMIT_AUTHOR'), 100)),
+            line('📧', 'البريد الإلكتروني', markdown(env.get('COMMIT_AUTHOR_EMAIL'), 140)),
+            line('📝', 'رسالة التعديل', markdown(env.get('COMMIT_SUBJECT'), 180)),
+            '',
+            '**⚙️ حالة النشر**',
+            line('📍', 'المرحلة الأخيرة', phase_text),
+            line('💾', 'النسخ الاحتياطي', backup),
+            line('🗄️', 'ترحيلات قاعدة البيانات', migrations),
+            line('🩺', 'التحقق من الخدمة', verification),
+            line('↩️', 'التراجع', rollback),
+            '',
+            '**⏱️ الوقت والنتيجة**',
+            line('⏳', 'مدة التنفيذ', duration_label(env.get('BUILD_DURATION_SECONDS', ''))),
+            line('📅', f'وقت التقرير ({local_label})', local.strftime('%Y-%m-%d %H:%M:%S')),
+            line('📊', 'النتيجة النهائية', f'{symbol} {label}'),
+        ]
+
+        if state.get('backup_path'):
+            lines.append(
+                line('📦', 'مسار النسخة الاحتياطية',
+                     markdown(state.get('backup_path'), 180))
+            )
+
+        if state.get('error_summary'):
+            lines.extend([
+                '',
+                '**⚠️ تفاصيل الخطأ**',
+                f'```text\n{plain(state.get("error_summary"), 300).replace("```", "'''")}\n```'
+            ])
+        elif status != 'SUCCESS':
+            lines.extend([
+                '',
+                '**⚠️ تفاصيل الخطأ**',
+                'راجع سجل Jenkins لتحديد السبب والمرحلة التي توقفت.'
+            ])
+
+        if links:
+            lines.extend([
+                '',
+                '**🔗 روابط المتابعة**',
+                *[f'• {link}' for link in links]
+            ])
+
+        embed = {
+            'title': f'{symbol} MEDSP | {label}',
+            'description': truncate('\n'.join(lines), 4000),
+            'color': color,
+            'timestamp': now.isoformat(timespec='seconds').replace('+00:00', 'Z'),
+            'footer': {
+                'text': (
+                    f'Jenkins #{plain(env.get("BUILD_NUMBER"), 30) or "?"}'
+                    f' | {plain(env.get("JOB_NAME"), 100) or "MEDSP"}'
+                )
+            }
+        }
+
+        if job_url:
+            embed['url'] = job_url
+
+        return {
+            'username': 'MEDSP · Jenkins',
+            'allowed_mentions': {'parse': []},
+            'embeds': [embed],
+        }
     # Enforce Discord's combined embed budget even for hostile long metadata.
     # Keep links intact and shorten the longest text fields first.
     def embed_units() -> int:
