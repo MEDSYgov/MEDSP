@@ -23,7 +23,7 @@ import RubbleHub from './projects/RubbleHub';
 
 
 /* الأقسام: ops (النظرة العامة والعمليات والخرائط) · monthly · rubble · projects */
-const SECTION_OF = { overview: 'ops', ops: 'ops', maps: 'ops', monthly: 'monthly', rubble: 'rubble', projects: 'projects', project: 'projects' };
+const SECTION_OF = { overview: 'ops', ops: 'ops', maps: 'ops', monthly: 'monthly', rubble: 'rubble', projects: 'projects', project: 'projects', 'test-project': 'projects' };
 const FIRST = [['ops', '#/'], ['rubble', '#/rubble'], ['monthly', '#/monthly'], ['projects', '#/projects']];
 const WORKSPACE = { super_admin: 'مساحة العمل', admin: 'مساحة العمل', reviewer: 'مراجعة الاستبيانات', collector: 'استبياناتي' };
 
@@ -154,6 +154,7 @@ function Platform({ me, signOut, theme, toggleTheme, route }) {
     if (route.page === 'ops' && !unknownOp) page = `تقرير ${active.name}`;
     else if (route.page === 'projects') page = 'المشاريع الإحصائية';
     else if (route.page === 'project' && currentProject) page = currentProject.name;
+    else if (route.page === 'test-project') page = 'مشروع تجريبي';
     else if (route.page === 'admin') page = 'مساحة العمل';
     else if (route.page === 'monthly') page = 'التقرير الشهري';
     else if (route.page === 'rubble') page = 'إدارة الأنقاض';
@@ -238,6 +239,18 @@ function Platform({ me, signOut, theme, toggleTheme, route }) {
             <div className="report__head"><h1>المشاريع الإحصائية</h1></div>
             <p className="report__summary">تقارير تفاعلية مبنية على بيانات ميدانية معتمدة.</p>
             <ProjectsTab projects={projects.list} status={projects.status} />
+          </section>
+        )}
+
+        {allowedHere && route.page === 'test-project' && (
+          <section className="shell">
+            <div className="report__head"><h1>مشروع تجريبي</h1></div>
+            <p className="report__summary">صفحة تجريبية لاختبار النشر الآلي من GitHub إلى السيرفر.</p>
+            <div className="pending">
+              <h3>النشر الآلي يعمل</h3>
+              <p>إن كنت ترى هذه الصفحة، فقد وصل التعديل من GitHub إلى السيرفر تلقائياً.</p>
+              <a className="q-btn" href={href.projects()}>كل المشاريع</a>
+            </div>
           </section>
         )}
 
