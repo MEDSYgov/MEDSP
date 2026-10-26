@@ -27,6 +27,8 @@ export function parseRoute(hash) {
   /* الرابط القديم لمشروع ترحيل الأنقاض صار مرحلة «التنفيذ» في إدارة الأنقاض */
   if (path.startsWith('/rubble') || path.startsWith('/projects/rubble-transfer')) return { page: 'rubble' };
   if ((m = path.match(/^\/ops\/([\w-]+)/))) return { page: 'ops', id: m[1] };
+  /* مشروع تجريبي ثابت — لاختبار خط النشر الآلي */
+  if (path.startsWith('/projects/test')) return { page: 'test-project' };
   if ((m = path.match(/^\/projects\/([\w-]+)/))) return { page: 'project', id: m[1] };
   if (path.startsWith('/projects')) return { page: 'projects' };
   return { page: 'overview' };
@@ -43,6 +45,7 @@ export const href = {
   atlas: () => '#/rubble-map',
   rubbleMap: () => '#/rubble/map',
   project: (id) => `#/projects/${id}`,
+  testProject: () => '#/projects/test',
 };
 
 export function navigate(to) {
