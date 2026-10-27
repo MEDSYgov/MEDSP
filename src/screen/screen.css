@@ -1,0 +1,162 @@
+/*
+  شاشات العرض — مصممة للقراءة من 3 إلى 6 أمتار.
+  كل المقاسات بوحدات الحاوية (cqw/cqh)، فالمعاينة المصغّرة في لوحة الإدارة
+  تطابق الشاشة الكبيرة تماماً.
+  الوضع داكن دائماً: أريح على شاشات تعمل طوال اليوم.
+*/
+
+html.sx-root, html.sx-root body { margin: 0; height: 100%; overflow: hidden; background: #001513; }
+html.sx-root body { cursor: none; }
+
+.sx-page { position: fixed; inset: 0; display: grid; place-items: center; background: #001513; }
+.sx-page > .sx { width: min(100vw, 177.78vh); height: min(100vh, 56.25vw); }
+
+.sx {
+  --sx-ink: #ebe8d7;
+  --sx-soft: rgba(235, 232, 215, 0.66);
+  --sx-faint: rgba(235, 232, 215, 0.36);
+  --sx-gold: #c4ae7c;
+  --sx-teal: #4f9489;
+  --sx-teal-2: #8fc0b5;
+  --sx-red: #c46a74;
+  --sx-line: rgba(185, 167, 121, 0.2);
+  container-type: size;
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  overflow: hidden;
+  color: var(--sx-ink);
+  font-family: 'Qomra', sans-serif;
+  direction: rtl;
+  font-variant-numeric: tabular-nums lining-nums;
+  background:
+    radial-gradient(60% 70% at 92% 0%, rgba(66, 129, 119, 0.42), transparent 65%),
+    radial-gradient(55% 60% at 0% 100%, rgba(185, 167, 121, 0.12), transparent 60%),
+    linear-gradient(160deg, #023a32 0%, #001d1a 55%, #00110f 100%);
+}
+/* نقش هادئ خلف المحتوى: النجمة الثمانية بخطوط ذهبية خافتة */
+.sx::before {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.05;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80"><g fill="none" stroke="%23b9a779" stroke-width="1"><rect x="22" y="22" width="36" height="36"/><rect x="22" y="22" width="36" height="36" transform="rotate(45 40 40)"/></g></svg>');
+  background-size: 5.2cqw 5.2cqw;
+  mask-image: linear-gradient(100deg, #000 0%, transparent 45%);
+}
+
+/* ===== الشريط العلوي ===== */
+.sx-top { position: relative; display: flex; align-items: center; gap: 1.4cqw; padding: 2.2cqh 3.4cqw 1.8cqh; }
+.sx-emblem { height: 7.4cqh; width: auto; }
+.sx-brand { display: grid; gap: 0.4cqh; }
+.sx-brand strong { font-size: 2.05cqw; font-weight: 700; letter-spacing: -0.01em; }
+.sx-brand span { font-size: 1.25cqw; color: var(--sx-gold); }
+.sx-clock { margin-inline-start: auto; display: grid; justify-items: end; gap: 0.3cqh; color: var(--sx-soft); font-size: 1.2cqw; }
+.sx-clock__t { font-size: 2.6cqw; font-weight: 500; color: var(--sx-ink); letter-spacing: 0.02em; }
+.sx-band { height: 0.9cqh; background: url('/brand/band.png') repeat-x center / auto 100%; opacity: 0.85; }
+
+/* ===== مسرح الشرائح ===== */
+.sx-stage { position: relative; min-height: 0; padding: 4.5cqh 5cqw 2cqh; }
+.sx-slide { height: 100%; animation: sx-in 0.9s cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes sx-in { from { opacity: 0; transform: translateY(2.5cqh); } to { opacity: 1; transform: none; } }
+
+.sx-kicker { margin: 0; font-size: 1.5cqw; color: var(--sx-gold); letter-spacing: 0.01em; }
+.sx-title { margin: 0.8cqh 0 0; font-size: 3.1cqw; font-weight: 700; line-height: 1.15; }
+.sx-sub { margin: 0.6cqh 0 0; font-size: 1.6cqw; color: var(--sx-soft); }
+.sx-num { font-feature-settings: 'tnum' 1, 'lnum' 1; unicode-bidi: isolate; }
+.sx-giant { font-size: 15cqw; font-weight: 800; line-height: 0.95; letter-spacing: -0.03em; margin-top: 1cqh; }
+.sx-mid { font-size: 7cqw; font-weight: 800; line-height: 1; letter-spacing: -0.02em; margin-top: 2.2cqh; }
+.sx-unit, .sx-pct { font-size: 0.42em; font-weight: 500; color: var(--sx-gold); letter-spacing: 0; }
+
+/* الواجهة الرئيسية: رقم ضخم في الوسط */
+.sx-hero { height: 100%; display: grid; align-content: center; justify-items: start; }
+.sx-delta { display: inline-flex; align-items: baseline; gap: 0.6cqw; margin-top: 2.4cqh; padding: 0.8cqh 1.3cqw; border-radius: 99px; font-size: 1.6cqw; background: rgba(235, 232, 215, 0.06); border: 1px solid var(--sx-line); }
+.sx-delta.is-up { color: var(--sx-teal-2); }
+.sx-delta.is-down { color: var(--sx-gold); }
+.sx-delta__lbl { color: var(--sx-soft); }
+.sx-foot-stat { position: absolute; inset-inline-end: 5cqw; bottom: 4cqh; display: grid; justify-items: end; gap: 0.4cqh; font-size: 1.4cqw; color: var(--sx-soft); text-align: end; }
+.sx-foot-stat strong { font-size: 4.4cqw; color: var(--sx-ink); font-weight: 700; line-height: 1; }
+
+/* شريحة بعمودين: النص يميناً، الرسم يساراً */
+.sx-split { height: 100%; display: grid; grid-template-columns: 34% 1fr; gap: 5cqw; align-items: center; }
+.sx-side { display: grid; align-content: center; }
+.sx-stack { height: 100%; display: grid; grid-template-rows: auto auto 1fr; }
+
+/* الأعمدة الأفقية */
+.sx-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.5cqh; align-content: center; }
+.sx-stack .sx-bars { margin-top: 2cqh; }
+.sx-bars li { display: grid; grid-template-columns: 14cqw 1fr 12cqw; align-items: center; gap: 1.4cqw; animation: sx-in 0.7s calc(0.08s * var(--i)) both; }
+.sx-bars__name { font-size: 1.75cqw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sx-bars__track { position: relative; height: 3.4cqh; border-radius: 99px; background: rgba(235, 232, 215, 0.07); overflow: hidden; }
+.sx-bars__fill { position: absolute; inset-block: 0; inset-inline-start: 0; width: var(--w); border-radius: 99px; background: linear-gradient(270deg, var(--sx-teal-2), var(--sx-teal)); transform-origin: right; animation: sx-grow 1.2s calc(0.2s + 0.08s * var(--i)) cubic-bezier(.2, .7, .2, 1) both; }
+.sx-bars:not(.sx-bars--pair) li:first-child .sx-bars__fill { background: linear-gradient(270deg, #e3d9b8, var(--sx-gold)); }
+@keyframes sx-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.sx-bars__val { font-size: 1.9cqw; font-weight: 700; text-align: start; white-space: nowrap; }
+.sx-bars__val small { font-size: 0.62em; font-weight: 400; color: var(--sx-soft); }
+
+/* أعمدة مزدوجة: المخطط والمنفّذ */
+.sx-bars--pair li { grid-template-columns: 12cqw 1fr 18cqw; }
+.sx-bars--pair .sx-bars__fill.is-plan { background: rgba(185, 167, 121, 0.28); }
+.sx-bars--pair .sx-bars__fill.is-done { background: linear-gradient(270deg, var(--sx-teal-2), var(--sx-teal)); }
+.sx-legend { display: flex; gap: 2.4cqw; margin-top: 1.6cqh; font-size: 1.35cqw; color: var(--sx-soft); }
+.sx-legend span { all: unset; display: inline-flex; align-items: center; }
+.sx-legend span::before { content: ''; display: inline-block; width: 1.1cqw; height: 1.1cqw; border-radius: 3px; margin-inline-end: 0.6cqw; vertical-align: -0.1em; }
+.sx-legend .sx-lg-plan::before { background: rgba(185, 167, 121, 0.45); }
+.sx-legend .sx-lg-done::before { background: var(--sx-teal-2); }
+
+/* بطاقات الأثر الإنساني */
+.sx-tiles { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 2.4cqw; align-self: center; }
+.sx-tile { padding: 4cqh 2.4cqw; border-radius: 1.4cqw; background: rgba(235, 232, 215, 0.045); border: 1px solid var(--sx-line); animation: sx-in 0.8s calc(0.12s * var(--i)) both; }
+.sx-tile:first-child { background: linear-gradient(160deg, rgba(66, 129, 119, 0.35), rgba(2, 68, 58, 0.25)); }
+.sx-tile .sx-mid { margin-top: 0; }
+.sx-tile__lbl { display: block; margin-top: 1.4cqh; font-size: 1.7cqw; color: var(--sx-soft); }
+
+/* الأعمدة الشهرية */
+.sx-cols { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 1.2cqw; align-items: end; margin-top: 3cqh; min-height: 0; }
+.sx-col { height: 100%; display: grid; grid-template-rows: auto 1fr auto; justify-items: center; gap: 0.8cqh; animation: sx-in 0.6s calc(0.05s * var(--i)) both; }
+.sx-col__val { font-size: 1.15cqw; color: var(--sx-soft); align-self: end; }
+.sx-col__bar { align-self: end; width: 70%; height: var(--h); border-radius: 0.5cqw 0.5cqw 0.15cqw 0.15cqw; background: linear-gradient(180deg, var(--sx-teal), rgba(66, 129, 119, 0.35)); transform-origin: bottom; animation: sx-rise 1.1s calc(0.15s + 0.05s * var(--i)) cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes sx-rise { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.sx-col.is-last .sx-col__bar { background: linear-gradient(180deg, #e3d9b8, var(--sx-gold)); }
+.sx-col.is-last .sx-col__val { color: var(--sx-ink); font-weight: 700; font-size: 1.4cqw; }
+.sx-col__lbl { font-size: 1.05cqw; color: var(--sx-soft); white-space: nowrap; }
+
+/* حلقة نسبة الإنجاز */
+.sx-ringbox { position: relative; justify-self: center; width: min(46cqh, 34cqw); aspect-ratio: 1; }
+.sx-ring { width: 100%; height: 100%; }
+.sx-ring circle { fill: none; stroke-width: 14; }
+.sx-ring__track { stroke: rgba(235, 232, 215, 0.08); }
+.sx-ring__fill { stroke: var(--sx-gold); stroke-linecap: round; animation: sx-ring 1.8s 0.2s cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes sx-ring { from { stroke-dashoffset: var(--c); } }
+.sx-ringbox__in { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.sx-ringbox__in .sx-mid { margin: 0; }
+.sx-split:has(.sx-ringbox) { grid-template-columns: 40% 1fr; }
+.sx-pairs { margin: 4cqh 0 0; display: grid; gap: 2.6cqh; }
+.sx-pairs div { border-inline-start: 0.35cqw solid rgba(185, 167, 121, 0.35); padding-inline-start: 1.6cqw; }
+.sx-pairs .is-gold { border-color: var(--sx-gold); }
+.sx-pairs dt { font-size: 1.5cqw; color: var(--sx-soft); }
+.sx-pairs dd { margin: 0.5cqh 0 0; font-size: 3.6cqw; font-weight: 700; }
+
+/* رسالة حرة */
+.sx-message { height: 100%; display: grid; align-content: center; max-width: 78cqw; }
+.sx-giant-text { margin: 0; font-size: 5.4cqw; font-weight: 800; line-height: 1.2; }
+.sx-message__text { margin: 3cqh 0 0; font-size: 2.3cqw; line-height: 1.6; color: var(--sx-soft); white-space: pre-line; }
+
+/* لا شرائح: الشعار وحده */
+.sx-idle { display: grid; place-content: center; justify-items: center; gap: 3cqh; }
+.sx-idle img { height: 28cqh; opacity: 0.9; }
+.sx-idle p { margin: 0; font-size: 2.4cqw; color: var(--sx-soft); }
+
+/* مؤشر الشرائح أسفل الشاشة، يمتلئ مع مدة الشريحة */
+.sx-dots { display: flex; gap: 0.6cqw; padding: 0 5cqw 3.4cqh; }
+.sx-dots > span { position: relative; flex: 1; height: 0.6cqh; border-radius: 99px; background: rgba(235, 232, 215, 0.12); overflow: hidden; }
+.sx-dots > span.is-past { background: rgba(185, 167, 121, 0.45); }
+.sx-dots__run { position: absolute; inset: 0; background: var(--sx-gold); transform-origin: right; animation: sx-run var(--sec) linear both; }
+@keyframes sx-run { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+.sx-offline { position: fixed; bottom: 2vh; inset-inline: 0; margin: 0; text-align: center; color: rgba(235, 232, 215, 0.6); font-family: 'Qomra', sans-serif; }
+
+/* المعاينة داخل لوحة الإدارة */
+.sx--preview { width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.6); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sx *, .sx *::before { animation-duration: 0.01s !important; animation-delay: 0s !important; }
+}

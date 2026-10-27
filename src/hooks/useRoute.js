@@ -12,12 +12,14 @@ import { useEffect, useState } from 'react';
     #/s/<uuid>         تعبئة استبيان (صفحة مستقلة)
     #/maps             عارض الخرائط
     #/admin            مساحة العمل
+    #/screen           شاشات العرض في مبنى الوزارة (عامة، بلا تسجيل دخول)
 */
 
 export function parseRoute(hash) {
   const path = (hash || '').replace(/^#/, '') || '/';
   let m;
   if ((m = path.match(/^\/s\/([\w-]+)/))) return { page: 'fill', id: m[1] };
+  if (path.startsWith('/screen')) return { page: 'screen' };
   if (path.startsWith('/admin')) return { page: 'admin' };
   if (path.startsWith('/maps/risk')) return { page: 'maps', tab: 'risk' };
   if (path.startsWith('/maps')) return { page: 'maps', tab: 'ops' };
@@ -46,6 +48,7 @@ export const href = {
   rubbleMap: () => '#/rubble/map',
   project: (id) => `#/projects/${id}`,
   testProject: () => '#/projects/test',
+  screen: () => '#/screen',
 };
 
 export function navigate(to) {

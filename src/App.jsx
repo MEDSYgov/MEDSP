@@ -20,6 +20,10 @@ import MapsPage from './components/MapsPage';
 import OpsMapView from './components/OpsMapView';
 import MonthlyReport from './components/MonthlyReport';
 import RubbleHub from './projects/RubbleHub';
+import { lazy, Suspense } from 'react';
+
+/* صفحة الشاشات تُحمَّل وحدها، فلا يثقل بها باقي المنصة */
+const ScreenPage = lazy(() => import('./screen/ScreenPage'));
 
 
 /* الأقسام: ops (النظرة العامة والعمليات والخرائط) · monthly · rubble · projects */
@@ -30,6 +34,11 @@ const WORKSPACE = { super_admin: 'مساحة العمل', admin: 'مساحة ا�
 export default function App() {
   const { theme, toggle: toggleTheme } = useTheme();
   const route = useRoute();
+
+  /* شاشات العرض في مبنى الوزارة: عامة، وما تعرضه يحدده مدير المنصة */
+  if (route.page === 'screen') {
+    return <Suspense fallback={null}><ScreenPage /></Suspense>;
+  }
 
   /* رابط تعبئة: #/s/<id> — صفحة مستقلة (تحميها كلمة مرور الاستبيان إن وُجدت) */
   if (route.page === 'fill') {
