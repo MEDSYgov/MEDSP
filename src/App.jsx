@@ -60,9 +60,42 @@ export default function App() {
     </div>
   );
   return (
-    <AuthGate wrap={frame}>
+    <AuthGate wrap={frame}
+      guest={route.page === 'overview' ? () => <PublicOverview theme={theme} toggleTheme={toggleTheme} /> : undefined}>
       {({ me, signOut }) => <Platform me={me} signOut={() => { clearData(); signOut(); }} theme={theme} toggleTheme={toggleTheme} route={route} />}
     </AuthGate>
+  );
+}
+
+/*
+  النظرة العامة للزائر بلا تسجيل دخول (بطلب من المدير).
+  بقية الأقسام تبقى خلف الدخول: الضغط على أي تصنيف يفتح نموذج الدخول،
+  وبعد الدخول يصل الزائر إلى التقرير الذي ضغط عليه.
+*/
+function PublicOverview({ theme, toggleTheme }) {
+  const [state, setState] = useState({ status: 'loading' });
+  useEffect(() => {
+    document.title = 'منصة مديرية التخطيط والإحصاء — وزارة الطوارئ وإدارة الكوارث';
+    Promise.all([getData('overview'), getData('basemap')])
+      .then(([report, basemap]) => setState({ status: 'ready', report, basemap }))
+      .catch(() => setState({ status: 'error' }));
+  }, []);
+  return (
+    <div className="layout">
+      <Masthead theme={theme} onToggleTheme={toggleTheme} showLogin />
+      <main>
+        <article className="shell">
+          <div className="report__head"><h1>النظرة العامة</h1></div>
+          <p className="report__summary">ملخّص كل عمليات الوزارة المسجّلة في الفترة المختارة.</p>
+          {state.status === 'loading' && <div className="pending"><p>جارٍ تحميل البيانات…</p></div>}
+          {state.status === 'error' && <div className="pending"><h3>تعذّر تحميل البيانات</h3><p>حاول مجدداً بعد قليل.</p></div>}
+          {state.status === 'ready' && (
+            <Home report={state.report} basemap={state.basemap} onOpen={(id) => { window.location.hash = href.ops(id); }} />
+          )}
+        </article>
+      </main>
+      <Footer />
+    </div>
   );
 }
 
