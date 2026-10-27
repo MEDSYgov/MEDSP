@@ -5,6 +5,7 @@ import SyriaMap from './SyriaMap';
 import BarChart from './BarChart';
 import Figure from './Figure';
 import Icon from './Icon';
+import NewsTicker from './NewsTicker';
 import { Panel, Toll } from './ReportShell';
 import { categories } from '../data/categories';
 
@@ -75,6 +76,7 @@ export default function Home({ report, basemap, onOpen }) {
 
   return (
     <>
+      <NewsTicker />
       <Filters
         bounds={{ from: report.from, to: report.to }}
         range={range}
