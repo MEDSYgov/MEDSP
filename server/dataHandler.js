@@ -3,7 +3,7 @@
   1) الرمز (JWT) يُتحقق منه في قاعدة البيانات عبر my_role (PostgREST يرفض الرمز المزوّر).
   2) الدور والأقسام: هل يحق لهذا الحساب رؤية هذا الملف؟
   3) المحافظات: تُحذف السجلات خارج محافظات الحساب قبل الإرسال.
-  استثناء: ملفات النظرة العامة (PUBLIC_FILES) متاحة للزائر بلا تسجيل دخول.
+  ملفات النظرة العامة للزائر تُقدَّم من باب مستقل: /api/public (publicHandler).
   يعمل كما هو على Vercel (api/data.js) وعلى خادم الوزارة (Node) وفي المعاينة المحلية.
 */
 import fs from 'node:fs';
@@ -23,8 +23,8 @@ const SECTIONS = Object.fromEntries([
   ['ops-map', ['ops']],
 ]);
 
-/* ملفات النظرة العامة: متاحة للزائر دون تسجيل دخول (بطلب من المدير، 2026-10-27).
-   الحساب المسجّل يمر بالتحقق المعتاد، فيرى نسخة مقيدة بمحافظاته إن كانت له قيود. */
+/* ملفات النظرة العامة: متاحة للزائر دون تسجيل دخول (بطلب من المدير، 2026-10-27)،
+   لكن عبر باب مستقل /api/public (publicHandler أدناه). بوابة /api/data تبقى محمية بلا استثناء. */
 const PUBLIC_FILES = new Set(['summary', 'overview']);
 
 const norm = (s) => String(s ?? '').replace(/[إأآ]/g, 'ا').replace(/ة\s*$/, 'ه').replace(/\s+/g, ' ').trim();
@@ -98,23 +98,15 @@ export default async function handler(req, res) {
     const name = new URL(req.url, 'http://x').searchParams.get('f') || '';
     if (!SECTIONS[name]) return send(req, res, 404, { error: 'غير موجود' });
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-    const isPublic = PUBLIC_FILES.has(name);
-    if (!token) {
-      if (isPublic) return send(req, res, 200, load(name));
-      return send(req, res, 401, { error: 'يلزم تسجيل الدخول' });
-    }
+    if (!token) return send(req, res, 401, { error: 'يلزم تسجيل الدخول' });
     const me = await whoAmI(token);
-    if (!me || !me.role) {
-      if (isPublic) return send(req, res, 200, load(name));
-      return send(req, res, 401, { error: 'الجلسة غير صالحة' });
-    }
+    if (!me || !me.role) return send(req, res, 401, { error: 'الجلسة غير صالحة' });
 
     const full = me.role === 'super_admin' || me.role === 'admin';
     if (!full) {
+      if (me.role === 'collector') return send(req, res, 403, { error: 'غير مصرّح' });
       const secs = me.sections || [];
-      const blocked = me.role === 'collector' || (secs.length && !SECTIONS[name].some((s) => secs.includes(s)));
-      /* ما هو متاح للعموم لا يُمنع عن حساب مسجّل */
-      if (blocked) return isPublic ? send(req, res, 200, load(name)) : send(req, res, 403, { error: 'غير مصرّح' });
+      if (secs.length && !SECTIONS[name].some((s) => secs.includes(s))) return send(req, res, 403, { error: 'غير مصرّح' });
     }
     let data = load(name);
     const govs = me.govs || [];
@@ -125,6 +117,18 @@ export default async function handler(req, res) {
     return send(req, res, 200, data);
   } catch (e) {
     console.error('[MEDSP api/data]', e.message);
+    return send(req, res, 500, { error: 'تعذّر تحميل البيانات' });
+  }
+}
+
+/* الباب العام: ملفات النظرة العامة فقط، بلا تسجيل دخول. أي ملف آخر ← 404 */
+export async function publicHandler(req, res) {
+  try {
+    const name = new URL(req.url, 'http://x').searchParams.get('f') || '';
+    if (!PUBLIC_FILES.has(name)) return send(req, res, 404, { error: 'غير موجود' });
+    return send(req, res, 200, load(name));
+  } catch (e) {
+    console.error('[MEDSP api/public]', e.message);
     return send(req, res, 500, { error: 'تعذّر تحميل البيانات' });
   }
 }

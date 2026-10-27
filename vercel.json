@@ -9,6 +9,11 @@
       "includeFiles": "server-data/**",
       "memory": 1024,
       "maxDuration": 30
+    },
+    "api/public.js": {
+      "includeFiles": "server-data/**",
+      "memory": 1024,
+      "maxDuration": 30
     }
   }
 }
