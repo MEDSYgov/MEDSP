@@ -7,9 +7,10 @@ let lib;
 
 export async function pdfjs() {
   if (!lib) {
+    /* النسخة «legacy» تعمل على المتصفحات الأقدم أيضاً (أجهزة الوزارة لا تُحدَّث دائماً) */
     lib = Promise.all([
-      import('pdfjs-dist'),
-      import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
+      import('pdfjs-dist/legacy/build/pdf.min.mjs'),
+      import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
     ]).then(([m, worker]) => {
       m.GlobalWorkerOptions.workerSrc = worker.default;
       return m;

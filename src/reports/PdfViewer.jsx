@@ -82,7 +82,7 @@ export default function PdfViewer({ report, onClose }) {
         const p1 = await x.getPage(1);
         if (alive) { setBaseW(p1.getViewport({ scale: 1 }).width); setDoc(x); } else x.destroy();
       })
-      .catch((e) => { if (alive) setErr(e.message || 'تعذّر فتح التقرير'); });
+      .catch((e) => { console.error('[reports] open', e); if (alive) setErr(e?.message || String(e)); });
     return () => { alive = false; d?.destroy(); };
   }, [report.file_path]);
 
