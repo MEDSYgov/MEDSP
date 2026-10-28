@@ -64,7 +64,11 @@ function LoginForm() {
   );
 }
 
-export default function AuthGate({ children, wrap = (n) => n }) {
+/*
+  guest: صفحة تُعرض للزائر بلا تسجيل دخول (النظرة العامة فقط، بطلب من المدير).
+  إن لم تُمرَّر، يظهر نموذج الدخول كالمعتاد.
+*/
+export default function AuthGate({ children, wrap = (n) => n, guest }) {
   const [session, setSession] = useState(undefined);
   const [me, setMe] = useState(undefined);
 
@@ -91,7 +95,7 @@ export default function AuthGate({ children, wrap = (n) => n }) {
     return wrap(<div className="auth"><p className="auth__lede">جارٍ التحقق…</p></div>);
   }
 
-  if (!session) return wrap(<LoginForm />);
+  if (!session) return guest ? guest() : wrap(<LoginForm />);
 
   /* حساب موجود في المصادقة لكن بلا دور — لا يصل لشيء */
   if (!me) {

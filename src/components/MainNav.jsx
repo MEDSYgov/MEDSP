@@ -40,11 +40,20 @@ function ProjectsMenu({ projects, status, activeId }) {
     return t ? projects.filter((p) => p.name.includes(t) || p.description?.includes(t)) : projects;
   }, [projects, q]);
 
+  /* المشروع التجريبي يظهر دائماً في أول القائمة */
+  const testCard = (
+    <a href={href.testProject()} className={`navcard navcard--project${activeId === 'test' ? ' is-on' : ''}`}>
+      <span className="navcard__name">مشروع تجريبي</span>
+      <span className="navcard__desc">صفحة تجريبية لاختبار النشر الآلي.</span>
+    </a>
+  );
+
   if (status === 'loading') return <p className="navmenu__empty">جارٍ التحميل…</p>;
   if (status === 'error') return <p className="navmenu__empty">تعذّر تحميل المشاريع. حدّث الصفحة وحاول مجدداً.</p>;
   if (projects.length === 0) {
     return (
       <div className="navmenu__empty">
+        <div className="navmenu__grid navmenu__grid--projects">{testCard}</div>
         <strong>لا توجد مشاريع منشورة بعد</strong>
         <span>تظهر هنا المشاريع الإحصائية بعد اعتماد بياناتها ونشرها.</span>
       </div>
@@ -58,6 +67,7 @@ function ProjectsMenu({ projects, status, activeId }) {
           placeholder="ابحث عن مشروع…" onChange={(e) => setQ(e.target.value)} />
       )}
       <div className="navmenu__grid navmenu__grid--projects">
+        {testCard}
         {list.map((p) => (
           <a key={p.id} href={href.project(p.id)}
             className={`navcard navcard--project${p.id === activeId ? ' is-on' : ''}`}
@@ -119,7 +129,7 @@ export default function MainNav({ route, ops, projects, projectsStatus, can = ()
           </button>}
 
           {can('projects') && <button type="button"
-            className={`categories__item mainnav__drop${route.page === 'project' || route.page === 'projects' ? ' is-active' : ''}${open === 'projects' ? ' is-open' : ''}`}
+            className={`categories__item mainnav__drop${route.page === 'project' || route.page === 'projects' || route.page === 'test-project' ? ' is-active' : ''}${open === 'projects' ? ' is-open' : ''}`}
             aria-expanded={open === 'projects'} aria-haspopup="true" aria-controls="menu-projects"
             onClick={() => toggle('projects')}>
             المشاريع
@@ -161,7 +171,7 @@ export default function MainNav({ route, ops, projects, projectsStatus, can = ()
             {open === 'ops'
               ? <OpsMenu ops={ops} activeId={route.page === 'ops' ? route.id : null} />
               : <ProjectsMenu projects={projects} status={projectsStatus}
-                  activeId={route.page === 'project' ? route.id : null} />}
+                  activeId={route.page === 'project' ? route.id : route.page === 'test-project' ? 'test' : null} />}
           </div>
         </div>
       )}

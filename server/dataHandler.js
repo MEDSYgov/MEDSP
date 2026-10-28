@@ -3,6 +3,7 @@
   1) الرمز (JWT) يُتحقق منه في قاعدة البيانات عبر my_role (PostgREST يرفض الرمز المزوّر).
   2) الدور والأقسام: هل يحق لهذا الحساب رؤية هذا الملف؟
   3) المحافظات: تُحذف السجلات خارج محافظات الحساب قبل الإرسال.
+  ملفات النظرة العامة للزائر تُقدَّم من باب مستقل: /api/public (publicHandler).
   يعمل كما هو على Vercel (api/data.js) وعلى خادم الوزارة (Node) وفي المعاينة المحلية.
 */
 import fs from 'node:fs';
@@ -21,6 +22,10 @@ const SECTIONS = Object.fromEntries([
   ...['rubble-transfer', 'rubble-pipeline', 'rubble-registry', 'rubble-damage', 'rubble-assessment', 'rubble-map'].map((f) => [f, ['rubble']]),
   ['ops-map', ['ops']],
 ]);
+
+/* ملفات النظرة العامة: متاحة للزائر دون تسجيل دخول (بطلب من المدير، 2026-10-27)،
+   لكن عبر باب مستقل /api/public (publicHandler أدناه). بوابة /api/data تبقى محمية بلا استثناء. */
+const PUBLIC_FILES = new Set(['summary', 'overview']);
 
 const norm = (s) => String(s ?? '').replace(/[إأآ]/g, 'ا').replace(/ة\s*$/, 'ه').replace(/\s+/g, ' ').trim();
 const cache = new Map();
@@ -112,6 +117,18 @@ export default async function handler(req, res) {
     return send(req, res, 200, data);
   } catch (e) {
     console.error('[MEDSP api/data]', e.message);
+    return send(req, res, 500, { error: 'تعذّر تحميل البيانات' });
+  }
+}
+
+/* الباب العام: ملفات النظرة العامة فقط، بلا تسجيل دخول. أي ملف آخر ← 404 */
+export async function publicHandler(req, res) {
+  try {
+    const name = new URL(req.url, 'http://x').searchParams.get('f') || '';
+    if (!PUBLIC_FILES.has(name)) return send(req, res, 404, { error: 'غير موجود' });
+    return send(req, res, 200, load(name));
+  } catch (e) {
+    console.error('[MEDSP api/public]', e.message);
     return send(req, res, 500, { error: 'تعذّر تحميل البيانات' });
   }
 }

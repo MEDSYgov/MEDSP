@@ -1,0 +1,46 @@
+# Canonical application Compose file for new CI releases.
+# Jenkins builds first; deployment uses --no-build --pull never.
+services:
+  medsp:
+    image: "${APP_IMAGE:?Set by infrash}"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    pull_policy: never
+    restart: unless-stopped
+    init: true
+    user: node
+    env_file:
+      - "${MEDSP_RUNTIME_ENV:?Set by infrash}"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+    ports:
+      - "${MEDSP_BIND_IP:-127.0.0.1}:${MEDSP_HOST_PORT:?Set by infrash}:3000"
+    extra_hosts:
+      - "${MEDSP_PROXY_HOSTNAME:?Set by infrash}=${MEDSP_PROXY_IP:?Set by infrash}"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:3000/healthz',
+          {signal:AbortSignal.timeout(4000)})
+          .then(async r=>{
+          if(!r.ok||(await r.text()).trim()!=='ok')process.exit(1)
+          }).catch(()=>process.exit(1))
+      interval: 5s
+      timeout: 5s
+      start_period: 15s
+      retries: 12
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -20,16 +20,25 @@ import MapsPage from './components/MapsPage';
 import OpsMapView from './components/OpsMapView';
 import MonthlyReport from './components/MonthlyReport';
 import RubbleHub from './projects/RubbleHub';
+import { lazy, Suspense } from 'react';
+
+/* صفحة الشاشات تُحمَّل وحدها، فلا يثقل بها باقي المنصة */
+const ScreenPage = lazy(() => import('./screen/ScreenPage'));
 
 
 /* الأقسام: ops (النظرة العامة والعمليات والخرائط) · monthly · rubble · projects */
-const SECTION_OF = { overview: 'ops', ops: 'ops', maps: 'ops', monthly: 'monthly', rubble: 'rubble', projects: 'projects', project: 'projects' };
+const SECTION_OF = { overview: 'ops', ops: 'ops', maps: 'ops', monthly: 'monthly', rubble: 'rubble', projects: 'projects', project: 'projects', 'test-project': 'projects' };
 const FIRST = [['ops', '#/'], ['rubble', '#/rubble'], ['monthly', '#/monthly'], ['projects', '#/projects']];
 const WORKSPACE = { super_admin: 'مساحة العمل', admin: 'مساحة العمل', reviewer: 'مراجعة الاستبيانات', collector: 'استبياناتي' };
 
 export default function App() {
   const { theme, toggle: toggleTheme } = useTheme();
   const route = useRoute();
+
+  /* شاشات العرض في مبنى الوزارة: عامة، وما تعرضه يحدده مدير المنصة */
+  if (route.page === 'screen') {
+    return <Suspense fallback={null}><ScreenPage /></Suspense>;
+  }
 
   /* رابط تعبئة: #/s/<id> — صفحة مستقلة (تحميها كلمة مرور الاستبيان إن وُجدت) */
   if (route.page === 'fill') {
@@ -51,9 +60,42 @@ export default function App() {
     </div>
   );
   return (
-    <AuthGate wrap={frame}>
+    <AuthGate wrap={frame}
+      guest={route.page === 'overview' ? () => <PublicOverview theme={theme} toggleTheme={toggleTheme} /> : undefined}>
       {({ me, signOut }) => <Platform me={me} signOut={() => { clearData(); signOut(); }} theme={theme} toggleTheme={toggleTheme} route={route} />}
     </AuthGate>
+  );
+}
+
+/*
+  النظرة العامة للزائر بلا تسجيل دخول (بطلب من المدير).
+  بقية الأقسام تبقى خلف الدخول: الضغط على أي تصنيف يفتح نموذج الدخول،
+  وبعد الدخول يصل الزائر إلى التقرير الذي ضغط عليه.
+*/
+function PublicOverview({ theme, toggleTheme }) {
+  const [state, setState] = useState({ status: 'loading' });
+  useEffect(() => {
+    document.title = 'منصة مديرية التخطيط والإحصاء — وزارة الطوارئ وإدارة الكوارث';
+    Promise.all([getData('overview'), getData('basemap')])
+      .then(([report, basemap]) => setState({ status: 'ready', report, basemap }))
+      .catch(() => setState({ status: 'error' }));
+  }, []);
+  return (
+    <div className="layout">
+      <Masthead theme={theme} onToggleTheme={toggleTheme} showLogin />
+      <main>
+        <article className="shell">
+          <div className="report__head"><h1>النظرة العامة</h1></div>
+          <p className="report__summary">ملخّص كل عمليات الوزارة المسجّلة في الفترة المختارة.</p>
+          {state.status === 'loading' && <div className="pending"><p>جارٍ تحميل البيانات…</p></div>}
+          {state.status === 'error' && <div className="pending"><h3>تعذّر تحميل البيانات</h3><p>حاول مجدداً بعد قليل.</p></div>}
+          {state.status === 'ready' && (
+            <Home report={state.report} basemap={state.basemap} onOpen={(id) => { window.location.hash = href.ops(id); }} />
+          )}
+        </article>
+      </main>
+      <Footer />
+    </div>
   );
 }
 
@@ -154,6 +196,7 @@ function Platform({ me, signOut, theme, toggleTheme, route }) {
     if (route.page === 'ops' && !unknownOp) page = `تقرير ${active.name}`;
     else if (route.page === 'projects') page = 'المشاريع الإحصائية';
     else if (route.page === 'project' && currentProject) page = currentProject.name;
+    else if (route.page === 'test-project') page = 'مشروع تجريبي';
     else if (route.page === 'admin') page = 'مساحة العمل';
     else if (route.page === 'monthly') page = 'التقرير الشهري';
     else if (route.page === 'rubble') page = 'إدارة الأنقاض';
@@ -238,6 +281,18 @@ function Platform({ me, signOut, theme, toggleTheme, route }) {
             <div className="report__head"><h1>المشاريع الإحصائية</h1></div>
             <p className="report__summary">تقارير تفاعلية مبنية على بيانات ميدانية معتمدة.</p>
             <ProjectsTab projects={projects.list} status={projects.status} />
+          </section>
+        )}
+
+        {allowedHere && route.page === 'test-project' && (
+          <section className="shell">
+            <div className="report__head"><h1>مشروع تجريبي</h1></div>
+            <p className="report__summary">صفحة تجريبية لاختبار النشر الآلي من GitHub إلى السيرفر.</p>
+            <div className="pending">
+              <h3>النشر الآلي يعمل</h3>
+              <p>إن كنت ترى هذه الصفحة، فقد وصل التعديل من GitHub إلى السيرفر تلقائياً.</p>
+              <a className="q-btn" href={href.projects()}>كل المشاريع</a>
+            </div>
           </section>
         )}
 

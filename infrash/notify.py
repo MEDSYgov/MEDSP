@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Send a bounded, secret-redacted Discord deployment notification.
+"""Send an English, single-column Discord deployment report from Jenkins.
 
-Only --dry-run prints the generated payload. Normal operation prints a generic
-delivery result and never a webhook URL, response body or raw deployment log.
+Usage: python3 notify.py [--state /path/to/state.json] [--dry-run]
+Only --dry-run prints payload; normal delivery never prints secrets or response bodies.
 """
-
 from __future__ import annotations
 
 import argparse
@@ -23,106 +22,77 @@ import urllib.parse
 import urllib.request
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-
+REPOSITORY_URL = 'https://github.com/MEDSYgov/MEDSP'
 MAX_STATE_BYTES = 256 * 1024
 MAX_RESPONSE_BYTES = 64 * 1024
-REQUEST_TIMEOUT = 10
 MAX_ATTEMPTS = 3
+REQUEST_TIMEOUT = 10
 MAX_RETRY_DELAY = 5
-REPOSITORY_URL = 'https://github.com/malikmehmetoglu-spec/MEDSP'
 
 STATUSES = {
-    'SUCCESS': ('✅', 'ناجح', 0x2ECC71, 'اكتمل النشر واجتازت الخدمة فحوصات التحقق.'),
-    'FAILURE': ('❌', 'فشل', 0xE74C3C, 'توقف مسار النشر بسبب خطأ. راجع المرحلة والملخص أدناه.'),
-    'ABORTED': ('⏹️', 'متوقف', 0x95A5A6, 'أُلغي التشغيل أو انتهت المهلة. يلزم مراجعة الحالة الحالية قبل إعادة النشر.'),
-    'UNSTABLE': ('⚠️', 'غير مستقر', 0xF39C12, 'انتهى التشغيل مع تحذير أو تحقق غير مكتمل.'),
-    'NOT_BUILT': ('⏸️', 'لم يُنفّذ', 0x95A5A6, 'لم تكتمل مراحل النشر في هذا التشغيل.'),
-    'UNKNOWN': ('❔', 'غير معروف', 0x95A5A6, 'لم تتوفر نتيجة مؤكدة للتشغيل.'),
+    'SUCCESS': ('✅', 'SUCCESS', 0x2ECC71, 'Deployment completed and all verification checks passed.'),
+    'FAILURE': ('❌', 'FAILED', 0xE74C3C, 'Deployment failed. Review the stage and error details below.'),
+    'ABORTED': ('⏹️', 'ABORTED', 0x95A5A6, 'Deployment was cancelled or timed out.'),
+    'UNSTABLE': ('⚠️', 'UNSTABLE', 0xF39C12, 'Deployment completed with warnings or incomplete checks.'),
+    'NOT_BUILT': ('⏸️', 'NOT BUILT', 0x95A5A6, 'Deployment stages were not executed.'),
+    'UNKNOWN': ('❔', 'UNKNOWN', 0x95A5A6, 'The deployment result is unavailable.'),
 }
-
 PHASES = {
-    'Initialization': 'التهيئة',
-    'Branch gate': 'التحقق من الفرع',
-    'Checkout': 'سحب المصدر',
-    'Build': 'بناء صورة Docker',
-    'Backup': 'النسخ الاحتياطي',
-    'Deploy and migrate': 'النشر وترحيلات قاعدة البيانات',
-    'Verification': 'التحقق من الخدمة',
-    'Completed': 'مكتمل',
+    'Initialization': 'Initialization', 'Branch gate': 'Branch validation',
+    'Checkout': 'Checkout', 'Build': 'Docker build', 'Backup': 'Backup',
+    'Deploy and migrate': 'Deployment & database migrations',
+    'Verification': 'Verification', 'Completed': 'Completed',
 }
-
 STATE_WORDS = {
-    'pending': 'بانتظار التنفيذ',
-    'not_started': 'لم يبدأ',
-    'skipped': 'تم التجاوز',
-    'running': 'قيد التنفيذ',
-    'success': 'ناجح',
-    'successful': 'ناجح',
-    'complete': 'مكتمل',
-    'completed': 'مكتمل',
-    'passed': 'اجتاز الفحص',
-    'verified': 'تم التحقق',
-    'failed': 'فشل',
-    'failure': 'فشل',
-    'not_needed': 'غير مطلوب',
-    'not_attempted': 'لم يُنفّذ',
-    'restored': 'أُعيدت النسخة السابقة',
-    'unavailable': 'غير متاح',
-    'none': 'لا يوجد',
+    'pending': 'Pending', 'not_started': 'Not started', 'skipped': 'Skipped',
+    'running': 'Running', 'success': 'Successful', 'successful': 'Successful',
+    'complete': 'Completed', 'completed': 'Completed', 'passed': 'Passed',
+    'verified': 'Verified', 'failed': 'Failed', 'failure': 'Failed',
+    'not_needed': 'Not required', 'not_attempted': 'Not attempted',
+    'restored': 'Previous version restored', 'unavailable': 'Unavailable',
+    'none': 'None',
 }
 
 
 def plain(value: Any, limit: int = 300) -> str:
-    """Bound and redact untrusted metadata before putting it in a message."""
-    if value is None:
-        return ''
     if not isinstance(value, (str, int, float, bool)):
         return ''
-    result = str(value).encode('utf-8', errors='replace').decode('utf-8')
-    result = result.replace('\r\n', '\n').replace('\r', '\n')
-    result = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', result)
-    for key in (
-        'DISCORD_WEBHOOK_URL', 'PGPASSWORD', 'DATABASE_URL',
-        'DATABASE_PASSWORD', 'SUPABASE_DB_PASSWORD', 'SUPABASE_SERVICE_ROLE_KEY',
-        'SERVICE_ROLE_KEY', 'JWT_SECRET',
-    ):
-        secret = os.environ.get(key, '')
+    result = str(value).replace('\r', ' ').replace('\n', ' ')
+    result = re.sub(r'[\x00-\x1f\x7f]', '', result)
+    for name in ('DISCORD_WEBHOOK_URL', 'PGPASSWORD', 'DATABASE_URL',
+                 'DATABASE_PASSWORD', 'SUPABASE_DB_PASSWORD',
+                 'SUPABASE_SERVICE_ROLE_KEY', 'SERVICE_ROLE_KEY', 'JWT_SECRET'):
+        secret = os.environ.get(name, '')
         if len(secret) >= 4:
-            result = result.replace(secret, '[محجوب]')
+            result = result.replace(secret, '[REDACTED]')
     result = re.sub(r'https://(?:canary\.|ptb\.)?discord(?:app)?\.com/api/[^\s<>]+',
-                    '[رابط سري محجوب]', result, flags=re.IGNORECASE)
-    result = re.sub(r'postgres(?:ql)?://[^\s<>]+', '[اتصال قاعدة البيانات محجوب]',
-                    result, flags=re.IGNORECASE)
+                    '[REDACTED WEBHOOK]', result, flags=re.I)
+    result = re.sub(r'postgres(?:ql)?://[^\s<>]+', '[REDACTED DATABASE URL]', result, flags=re.I)
     result = re.sub(r'\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b',
-                    '[رمز محجوب]', result)
+                    '[REDACTED TOKEN]', result)
     result = re.sub(
         r'(?i)\b(password|passwd|secret|token|api[_-]?key|service[_-]?role[_-]?key)'
         r'(\s*[=:]\s*)(?:"[^"]*"|\'[^\']*\'|[^\s,;]+)',
-        r'\1\2[محجوب]', result,
-    )
+        r'\1\2[REDACTED]', result)
     result = result.strip()
-    return result if len(result) <= limit else result[:limit - 1] + '…'
+    return result[:limit - 1] + '…' if len(result) > limit else result
 
 
-def discord_units(value: str) -> int:
-    """Count UTF-16 units conservatively, including supplementary emoji."""
+def units(value: str) -> int:
     return len(value.encode('utf-16-le')) // 2
 
 
-def truncate(value: str, limit: int) -> str:
-    if discord_units(value) <= limit:
+def truncate(value: str, max_units: int) -> str:
+    if units(value) <= max_units:
         return value
-    return value.encode('utf-16-le')[:max(0, limit - 1) * 2].decode(
-        'utf-16-le', errors='ignore') + '…'
+    return value.encode('utf-16-le')[:(max_units - 1) * 2].decode('utf-16-le', 'ignore') + '…'
 
 
-def markdown(value: Any, limit: int = 300, default: str = 'غير متاح') -> str:
-    result = plain(value, limit)
-    if not result:
+def md(value: Any, limit: int = 180, default: str = 'N/A') -> str:
+    value = plain(value, limit)
+    if not value:
         return default
-    # Metadata can otherwise break link formatting or impersonate a status line.
-    result = re.sub(r'([\\`*_~|>\[\]()#])', r'\\\1', result)
-    return truncate(result, min(1024, limit * 2))
+    return re.sub(r'([\\`*_~|>\[\]()#])', r'\\\1', value)
 
 
 def read_state(path: str | None) -> dict[str, Any]:
@@ -133,19 +103,18 @@ def read_state(path: str | None) -> dict[str, Any]:
             data = handle.read(MAX_STATE_BYTES + 1)
         if len(data) > MAX_STATE_BYTES:
             return {}
-        value = json.loads(data)
-        return value if isinstance(value, dict) else {}
+        obj = json.loads(data)
+        return obj if isinstance(obj, dict) else {}
     except (OSError, UnicodeError, ValueError):
         return {}
 
 
-def state_word(value: Any, default: str = 'غير متاح') -> str:
+def state_word(value: Any, default: str = 'N/A') -> str:
     key = str(value).strip().lower() if value is not None else ''
-    return STATE_WORDS.get(key, markdown(value, 120, default))
+    return STATE_WORDS.get(key, md(value, 90, default))
 
 
 def public_link(raw: str) -> str:
-    """Exclude credentials, queries and control characters from displayed links."""
     if not raw or re.search(r'[\x00-\x20\x7f]', raw):
         return ''
     try:
@@ -153,7 +122,6 @@ def public_link(raw: str) -> str:
         if (parsed.scheme not in ('http', 'https') or not parsed.hostname
                 or parsed.username is not None or parsed.password is not None):
             return ''
-        # Ensure a malformed port cannot make it into the message.
         _ = parsed.port
         path = urllib.parse.quote(parsed.path, safe='/:%@+._~-')
         result = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, path, '', ''))
@@ -162,17 +130,16 @@ def public_link(raw: str) -> str:
         return ''
 
 
-def duration_label(raw: str) -> str:
+def duration_label(raw: Any) -> str:
     try:
         seconds = float(raw)
         if not math.isfinite(seconds) or seconds < 0:
-            return 'غير متاح'
-        seconds = int(seconds)
-    except (TypeError, ValueError, OverflowError):
-        return 'غير متاح'
-    hours, remainder = divmod(seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    return f'{hours:02d}:{minutes:02d}:{seconds:02d}'
+            return 'N/A'
+        hours, remaining = divmod(int(seconds), 3600)
+        minutes, seconds = divmod(remaining, 60)
+        return f'{hours:02d}:{minutes:02d}:{seconds:02d}'
+    except (ValueError, TypeError, OverflowError):
+        return 'N/A'
 
 
 def make_payload(state: dict[str, Any]) -> dict[str, Any]:
@@ -182,103 +149,99 @@ def make_payload(state: dict[str, Any]) -> dict[str, Any]:
     now = dt.datetime.now(dt.timezone.utc)
     try:
         local = now.astimezone(ZoneInfo('Asia/Damascus'))
+        timezone = 'Damascus'
     except ZoneInfoNotFoundError:
-        local = now  # Label retains the real zone; never pretend UTC is Damascus.
-    local_label = 'دمشق' if getattr(local.tzinfo, 'key', '') == 'Asia/Damascus' else 'UTC'
+        local, timezone = now, 'UTC'
+
     branch = env.get('BRANCH_NAME', '')
     environment = env.get('DEPLOY_ENV') or {'main': 'production', 'staging': 'staging'}.get(branch, '')
-    phase = env.get('LAST_PHASE', '')
-    phase = PHASES.get(phase, phase)
+    phase = PHASES.get(env.get('LAST_PHASE', ''), env.get('LAST_PHASE', ''))
     commit = env.get('GIT_COMMIT', '')
     commit = commit if re.fullmatch(r'[0-9a-fA-F]{40,64}', commit) else ''
-    job_url = public_link(env.get('BUILD_URL', ''))
-    links = []
-    if job_url:
-        links.extend([
-            f'[فتح عملية Jenkins]({job_url})',
-            f'[سجل العملية والخطأ]({job_url.rstrip("/")}/console)',
-        ])
-    if commit:
-        links.append(f'[التعديل {commit[:12]}]({REPOSITORY_URL}/commit/{commit})')
+    build_url = public_link(env.get('BUILD_URL', ''))
 
-    fields: list[dict[str, Any]] = []
+    def line(emoji: str, name: str, value: Any, limit: int = 170) -> str:
+        return f'{emoji} **{name}:** {md(value, limit)}'
 
-    def field(name: str, value: str, inline: bool = False) -> None:
-        fields.append({'name': name, 'value': truncate(value, 1024) or 'غير متاح', 'inline': inline})
-
-    field('الحالة', f'{symbol} **{label}**', True)
-    field('البيئة / الفرع', f'{markdown(environment, 60)} / {markdown(branch, 60)}', True)
-    field('المرحلة الأخيرة', markdown(phase, 100), True)
-    field('صاحب التعديل', markdown(env.get('COMMIT_AUTHOR'), 140), True)
-    field('بريده المسجل في Git', markdown(env.get('COMMIT_AUTHOR_EMAIL'), 180), True)
-    field('مشغّل النشر / مصدر التشغيل', markdown(env.get('TRIGGER_ACTOR'), 180))
-    field('رسالة التعديل', markdown(env.get('COMMIT_SUBJECT'), 300))
-    field(f'وقت تقرير النشر ({local_label})', local.isoformat(timespec='seconds'), True)
-    field('المدة (ساعة:دقيقة:ثانية)', duration_label(env.get('BUILD_DURATION_SECONDS', '')), True)
-    field('النسخ الاحتياطي', state_word(state.get('backup_status')), True)
-    if state.get('backup_path'):
-        field('مسار النسخة الاحتياطية', markdown(state.get('backup_path'), 240))
-    migrations = state_word(state.get('migration_status'))
+    backup = state_word(state.get('backup_status'))
+    migration = state_word(state.get('migration_status'))
     count = state.get('migration_count')
-    # Shell state_set stores values as JSON strings; accept its digit strings
-    # while rejecting booleans, negatives, fractions and malformed values.
-    if isinstance(count, str):
-        count_text = count.strip()
-        count = int(count_text) if re.fullmatch(r'[0-9]{1,100}', count_text) else None
+    if isinstance(count, str) and re.fullmatch(r'[0-9]{1,10}', count.strip()):
+        count = int(count.strip())
     if isinstance(count, int) and not isinstance(count, bool) and count >= 0:
-        migrations += f' · عدد الترحيلات: {count}'
-    field('ترحيلات قاعدة البيانات', migrations, True)
-    field('التحقق', state_word(state.get('verification_status')), True)
-    field('استعادة التطبيق السابق', state_word(state.get('rollback_status'), 'لم تُطلب'), True)
-    if state.get('image'):
-        field('صورة التطبيق', markdown(state.get('image'), 180))
-    if state.get('release_dir'):
-        field('مجلد الإصدار', markdown(state.get('release_dir'), 220))
-    if state.get('error_summary'):
-        field('ملخص الخطأ', markdown(state.get('error_summary'), 400))
-    elif status != 'SUCCESS':
-        field('ملخص الخطأ', 'لم يتوفر ملخص محلي؛ راجع مرحلة Jenkins الأخيرة وسجل العملية.')
-    if links:
-        field('روابط المتابعة', ' • '.join(links))
+        migration += f' ({count} changes)'
 
-    embed: dict[str, Any] = {
-        'title': f'MEDSP — {label}',
-        'description': description,
+    lines = [
+        f'{symbol} {description}',
+        '', '**📋 BUILD INFORMATION**',
+        line('🌿', 'Branch', branch),
+        line('🏷️', 'Environment', environment),
+        line('🔢', 'Build', f"#{env.get('BUILD_NUMBER', '?')}"),
+        line('👤', 'Triggered by', env.get('TRIGGER_ACTOR')),
+        line('🧑‍💻', 'Commit author', env.get('COMMIT_AUTHOR')),
+        line('📧', 'Author email', env.get('COMMIT_AUTHOR_EMAIL')),
+        line('📝', 'Commit message', env.get('COMMIT_SUBJECT'), 220),
+        '', '**⚙️ DEPLOYMENT STATUS**',
+        line('📍', 'Last stage', phase),
+        line('💾', 'Backup', backup),
+        line('🗃️', 'DB migrations', migration),
+        line('🩺', 'Verification', state_word(state.get('verification_status'))),
+        line('↩️', 'Rollback', state_word(state.get('rollback_status'), 'Not required')),
+        '', '**⏱️ EXECUTION DETAILS**',
+        line('⏳', 'Duration', duration_label(env.get('BUILD_DURATION_SECONDS'))),
+        line('🕒', f'Local time ({timezone})', local.strftime('%Y-%m-%d %H:%M:%S')),
+        line('📊', 'Result', f'{symbol} {label}'),
+    ]
+    if state.get('backup_path'):
+        lines.append(line('📦', 'Backup directory', state['backup_path'], 250))
+    if state.get('release_dir'):
+        lines.append(line('📁', 'Release directory', state['release_dir'], 250))
+    if state.get('image') or state.get('image_tag'):
+        lines.append(line('🐳', 'Docker image', state.get('image') or state.get('image_tag'), 180))
+
+    if state.get('error_summary'):
+        lines.extend(['', '**⚠️ ERROR SUMMARY**',
+                      line('🔎', 'Details', state['error_summary'], 260)])
+    elif status != 'SUCCESS':
+        lines.extend(['', '**⚠️ ERROR SUMMARY**',
+                      '🔎 See the Jenkins console log for the underlying failure.'])
+
+    links = []
+    if build_url:
+        links.extend([f'[🔗 Open build]({build_url})',
+                      f'[📜 Console log]({build_url.rstrip("/")}/console)'])
+    if commit:
+        links.append(f'[🧾 Commit {commit[:12]}]({REPOSITORY_URL}/commit/{commit})')
+    if links:
+        lines.extend(['', '**🔗 QUICK LINKS**', '  |  '.join(links)])
+
+    # Discord allows 4096 UTF-16 units for description and 6000 per embed.
+    # Reserve space for title and footer; drop optional long lines before clipping.
+    title = f'{symbol} MEDSP Deployment | {label}'
+    footer = f'Jenkins #{plain(env.get("BUILD_NUMBER"), 20) or "?"} | {plain(env.get("JOB_NAME"), 100) or "MEDSP"}'
+    limit = min(3900, 5700 - units(title) - units(footer))
+    description_text = '\n'.join(lines)
+    if units(description_text) > limit:
+        description_text = truncate(description_text, limit)
+
+    embed = {
+        'title': title,
+        'description': description_text,
         'color': color,
         'timestamp': now.isoformat(timespec='seconds').replace('+00:00', 'Z'),
-        'fields': fields,
-        'footer': {'text': f'Jenkins #{plain(env.get("BUILD_NUMBER"), 30) or "?"} · '
-                           f'{plain(env.get("JOB_NAME"), 100) or "MEDSP"}'},
+        'footer': {'text': footer},
     }
-    if job_url:
-        embed['url'] = job_url
-    # Enforce Discord's combined embed budget even for hostile long metadata.
-    # Keep links intact and shorten the longest text fields first.
-    def embed_units() -> int:
-        return (discord_units(embed['title']) + discord_units(embed['description'])
-                + discord_units(embed['footer']['text'])
-                + sum(discord_units(item['name']) + discord_units(item['value'])
-                      for item in fields))
-
-    while embed_units() > 5800:
-        candidates = [item for item in fields if item['name'] != 'روابط المتابعة'
-                      and discord_units(item['value']) > 80]
-        if not candidates:
-            break
-        longest = max(candidates, key=lambda item: discord_units(item['value']))
-        excess = embed_units() - 5800
-        longest['value'] = truncate(longest['value'],
-                                    max(80, discord_units(longest['value']) - excess))
+    if build_url:
+        embed['url'] = build_url
     return {
-        'username': 'MEDSP · Jenkins',
-        'content': f'### {symbol} نشر MEDSP — {label}',
+        'username': 'MEDSP Jenkins',
         'allowed_mentions': {'parse': []},
         'embeds': [embed],
     }
 
 
 def webhook_url(raw: str) -> str:
-    """Accept only the Discord HTTPS incoming-webhook endpoint."""
+    """Restrict destinations to the Discord webhook API and force delivery confirmation."""
     try:
         parsed = urllib.parse.urlsplit(raw)
         if (parsed.scheme != 'https' or parsed.hostname != 'discord.com'
@@ -321,12 +284,10 @@ def retry_delay(error: urllib.error.HTTPError, attempt: int) -> float | None:
                 pass
     if delay is None and error.code == 429:
         try:
-            body = json.loads(error.read(4096))
-            delay = float(body['retry_after'])
+            delay = float(json.loads(error.read(4096))['retry_after'])
         except (OSError, ValueError, KeyError, TypeError):
             pass
     delay = (2 ** attempt) if delay is None else delay
-    # Do not hammer Discord before a longer requested rate-limit delay expires.
     if not math.isfinite(delay) or delay > MAX_RETRY_DELAY:
         return None
     return max(0.0, delay)
@@ -338,7 +299,7 @@ def send(payload: dict[str, Any], url: str) -> int:
     for attempt in range(MAX_ATTEMPTS):
         request = urllib.request.Request(url, data=encoded, method='POST', headers={
             'Content-Type': 'application/json; charset=utf-8',
-            'User-Agent': 'MEDSP-Jenkins-Notifier/1.0',
+            'User-Agent': 'MEDSP-Jenkins-Notifier/2.0',
         })
         try:
             with opener.open(request, timeout=REQUEST_TIMEOUT) as response:
@@ -374,7 +335,8 @@ def send(payload: dict[str, Any], url: str) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--state', help='Optional deployment state.json path')
-    parser.add_argument('--dry-run', action='store_true', help='Print JSON without sending any request')
+    parser.add_argument('--dry-run', action='store_true',
+                        help='Print JSON without sending any HTTP request')
     args = parser.parse_args()
     payload = make_payload(read_state(args.state))
     if args.dry_run:
@@ -388,8 +350,6 @@ def main() -> int:
     try:
         return send(payload, url)
     except Exception:
-        # Unexpected HTTP/proxy/parser errors must not expose a webhook through
-        # a traceback, and must not replace the deployment's original outcome.
         print('Discord notification failed (unexpected delivery error).', file=sys.stderr)
         return 1
 

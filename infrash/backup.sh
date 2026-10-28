@@ -40,7 +40,7 @@ if [[ -L "$DEPLOY_ROOT/current" ]]; then
     [[ "$previous" == "$DEPLOY_ROOT/releases/"* && -f "$previous/release.json" ]] || die 'Invalid current release pointer.'
     old_container="$(container_for_release "$previous")"
     [[ -n "$old_container" ]] || die 'Current application container is missing; reconcile deployment before backing it up.'
-    old_image="$(docker inspect --format '{{.Image}}' "$old_container")"
+    old_image="$(docker inspect --type container --format '{{.Image}}' "$old_container")"
     [[ "$old_image" == "$(release_get "$previous" image_id)" ]] || die 'Running image differs from the current release; reconcile first.'
     tar -C "$previous" -czf "$temporary/project.tar.gz" .
 elif [[ "$BOOTSTRAP_EMPTY" == true ]]; then
@@ -57,9 +57,9 @@ if source == pathlib.Path('/') or backup.is_relative_to(source) or deploy.is_rel
 PY
     old_container="$INITIAL_CONTAINER"
     [[ "$old_container" != "$DB_CONTAINER" ]] || die 'INITIAL_CONTAINER must be the application, not the database.'
-    old_project="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$old_container")"
+    old_project="$(docker inspect --type container --format '{{index .Config.Labels "com.docker.compose.project"}}' "$old_container")"
     [[ "$old_project" != "$APP_PROJECT" ]] || die 'First-time takeover must use a NEW Compose project name so the old container remains available.'
-    old_image="$(docker inspect --format '{{.Image}}' "$old_container")"
+    old_image="$(docker inspect --type container --format '{{.Image}}' "$old_container")"
     tar --exclude='./node_modules' --exclude='./.git' -C "$INITIAL_PROJECT_DIR" -czf "$temporary/project.tar.gz" .
 fi
 state_set previous_release "$previous"

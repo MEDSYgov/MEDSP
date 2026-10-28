@@ -141,14 +141,41 @@ release_get() { json_get "$1/release.json" "$2"; }
 
 compose_release() {
     local release="$1"; shift
-    local image project port bind
+    local image project port bind compose_file proxy_hostname proxy_ip
+
     image="$(release_get "$release" image)"
     project="$(release_get "$release" project)"
     port="$(release_get "$release" port)"
     bind="$(release_get "$release" bind)"
-    APP_IMAGE="$image" MEDSP_RUNTIME_ENV="$release/runtime.env" MEDSP_BIND_IP="$bind" MEDSP_HOST_PORT="$port" \
-        docker compose --project-name "$project" --project-directory "$release/source" \
-        --env-file /dev/null -f "$release/source/infrash/compose.app.yml" "$@"
+    compose_file="$(release_get "$release" compose_file)"
+    proxy_hostname="$(release_get "$release" proxy_hostname)"
+    proxy_ip="$(release_get "$release" proxy_ip)"
+
+    # Old releases contain the old root example too. Do NOT select it merely
+    # because it exists. Missing metadata means the ORIGINAL CI Compose file.
+    compose_file="${compose_file:-infrash/compose.app.yml}"
+    case "$compose_file" in
+        infrash/compose.app.yml) ;;
+        docker-compose.yml.example)
+            [[ -n "$proxy_hostname" && -n "$proxy_ip" ]] \
+                || die 'Release is missing its saved proxy settings.'
+            ;;
+        *) die 'Unsupported Compose file in release metadata.' ;;
+    esac
+    [[ -f "$release/source/$compose_file" ]] \
+        || die 'The Compose file saved for this release is missing.'
+
+    APP_IMAGE="$image" \
+    MEDSP_RUNTIME_ENV="$release/runtime.env" \
+    MEDSP_BIND_IP="$bind" \
+    MEDSP_HOST_PORT="$port" \
+    MEDSP_PROXY_HOSTNAME="$proxy_hostname" \
+    MEDSP_PROXY_IP="$proxy_ip" \
+        docker compose \
+        --project-name "$project" \
+        --project-directory "$release/source" \
+        --env-file /dev/null \
+        -f "$release/source/$compose_file" "$@"
 }
 
 container_for_release() { compose_release "$1" ps -aq medsp; }

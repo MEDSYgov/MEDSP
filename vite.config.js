@@ -1,6 +1,7 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
-import dataHandler from './server/dataHandler.js'
+import dataHandler, { publicHandler } from './server/dataHandler.js'
+import screenHandler from './server/screenHandler.js'
 import { configScript } from './server/runtimeConfig.js'
 
 /* بوابة البيانات نفسها أثناء التطوير والمعاينة المحلية (على Vercel تعمل من api/data.js) */
@@ -9,6 +10,14 @@ const dataApi = () => {
     server.middlewares.use('/api/data', (req, res) => {
       req.url = `/api/data${req.url}`;
       dataHandler(req, res);
+    });
+    server.middlewares.use('/api/public', (req, res) => {
+      req.url = `/api/public${req.url}`;
+      publicHandler(req, res);
+    });
+    server.middlewares.use('/api/screen', (req, res) => {
+      req.url = `/api/screen${req.url}`;
+      screenHandler(req, res);
     });
   };
   return { name: 'medsp-data-api', configureServer: mount, configurePreviewServer: mount };

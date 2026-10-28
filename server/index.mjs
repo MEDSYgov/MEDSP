@@ -4,6 +4,8 @@
   يقرأ ملف .env عند التشغيل، ثم يقدّم:
     /config.js   إعدادات الواجهة، مولّدة من .env (لا تُبنى في الكود)
     /api/data    بوابة البيانات المحمية (server/dataHandler.js)
+    /api/screen  شاشات العرض العامة (server/screenHandler.js)
+    /api/public  بيانات النظرة العامة للزائر (publicHandler)
     كل ما عداه   ملفات الموقع المبنية من مجلد dist
 
   تعديل .env يكفيه إعادة تشغيل الخدمة، دون إعادة بناء الموقع.
@@ -29,7 +31,8 @@ if (fs.existsSync(envFile)) {
 }
 
 /* 2) بعد تحميل .env فقط تُستورد الوحدات التي تقرأ المتغيرات */
-const { default: dataHandler } = await import('./dataHandler.js');
+const { default: dataHandler, publicHandler } = await import('./dataHandler.js');
+const { default: screenHandler } = await import('./screenHandler.js');
 const { configScript, publicConfig } = await import('./runtimeConfig.js');
 
 const cfg = publicConfig();
@@ -73,6 +76,8 @@ const server = http.createServer((req, res) => {
     return res.end(CONFIG_JS);
   }
   if (pathname === '/api/data' || pathname.startsWith('/api/data/')) return dataHandler(req, res);
+  if (pathname === '/api/screen') return screenHandler(req, res);
+  if (pathname === '/api/public') return publicHandler(req, res);
   if (pathname === '/healthz') { res.setHeader('Content-Type', 'text/plain'); return res.end('ok'); }
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.statusCode = 405; return res.end(); }
 

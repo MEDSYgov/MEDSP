@@ -29,3 +29,10 @@ PUBLIC_HEALTH_URL=''
 WAIT_SECONDS=180
 MIN_FREE_GIB=10
 MIGRATIONS_BACKWARD_COMPATIBLE=false
+
+# Must match the hostname in APP_ENV_FILE's SUPABASE_URL.
+PROXY_HOSTNAME="example.com"
+
+# Replace after confirming the current reverse proxy's private IP.
+# A previous test used 10.81.180.240; this package does not confirm that address.
+PROXY_IP="REPLACE_WITH_CONFIRMED_INTERNAL_PROXY_IP"

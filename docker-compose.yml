@@ -1,12 +1,50 @@
-# منصة مديرية التخطيط والإحصاء
 #   التشغيل:            docker compose up -d --build
 #   بعد تعديل .env:      docker compose restart medsp
 #   بعد بيانات شهر جديد: docker compose up -d --build
 services:
   medsp:
-    build: .
-    container_name: medsp
+    image: "${MEDSP_IMAGE:?MEDSP_IMAGE is required}"
+
     restart: unless-stopped
-    env_file: .env
+
+    init: true
+
+    env_file:
+      - path: "${APP_ENV_FILE:?APP_ENV_FILE is required}"
+        required: true
+
+    environment:
+      PORT: "${CONTAINER_PORT:-3000}"
+      NODE_ENV: production
+
     ports:
-      - "127.0.0.1:3000:3000"   # متاح لـ Nginx على السيرفر فقط، لا من الشبكة مباشرة
+      - "${APP_BIND_IP:-127.0.0.1}:${APP_PORT:-3000}:${CONTAINER_PORT:-3000}"
+
+    extra_hosts:
+      - "${PROXY_HOSTNAME:?PROXY_HOSTNAME is required}:${PROXY_IP:?PROXY_IP is required}"
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:3000/healthz')
+          .then(async r => {
+            if (!r.ok || (await r.text()).trim() !== 'ok')
+              process.exit(1);
+          })
+          .catch(() => process.exit(1));
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+    security_opt:
+      - no-new-privileges:true
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

@@ -38,7 +38,7 @@ pipeline {
         }
 
         stage('Checkout') {
-            options { timeout(time: 15, unit: 'MINUTES') }
+            options { timeout(time: 6, unit: 'MINUTES') }
             steps {
                 script { env.LAST_PHASE = 'Checkout' }
                 deleteDir()
@@ -57,6 +57,14 @@ pipeline {
                     env.COMMIT_SUBJECT = sh(returnStdout: true,
                         script: 'git -c log.showSignature=false show -s --format=%s HEAD').trim()
                     env.INFRASH_RUN_ID = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}-${env.GIT_COMMIT.take(12)}"
+                    def branchLabel = env.BRANCH_NAME?.toUpperCase() ?: 'UNKNOWN'
+                    def shortCommit = env.GIT_COMMIT?.take(8) ?: 'UNKNOWN'
+
+                    currentBuild.displayName =
+                        "#${env.BUILD_NUMBER} | ${branchLabel} | RUNNING"
+
+                    currentBuild.description =
+                        "Commit: ${shortCommit} | CI/CD deployment in progress"
                 }
             }
         }
@@ -67,7 +75,7 @@ pipeline {
             options { lock(resource: 'medsp-host-deploy') }
             stages {
                 stage('Build') {
-                    options { timeout(time: 60, unit: 'MINUTES') }
+                    options { timeout(time: 6, unit: 'MINUTES') }
                     steps {
                         script { env.LAST_PHASE = 'Build' }
                         sh 'bash infrash/build.sh'
@@ -97,42 +105,92 @@ pipeline {
         }
     }
 
-    post {
-        always {
-            script {
-                // A missing checkout must not prevent notification. The bootstrap
-                // script is installed by the administrator outside this workspace.
-                env.DEPLOY_RESULT = currentBuild.currentResult
-                env.BUILD_DURATION_SECONDS =
-                    ((System.currentTimeMillis() - currentBuild.startTimeInMillis) / 1000).toLong().toString()
-                try {
-                    withCredentials([string(credentialsId: 'medsp-discord-webhook',
-                                            variable: 'DISCORD_WEBHOOK_URL')]) {
-                        int rc = sh(returnStatus: true, script: '''
-                            set +x
-                            bash /opt/medsp-ci/verification.sh notify
-                        ''')
-                        if (rc != 0) {
-                            echo 'WARNING: Discord notification was not delivered. Deployment result is unchanged.'
-                        }
-                    }
-                } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException interrupted) {
-                    // Respect a deliberate interruption of this post action.
-                    throw interrupted
-                } catch (Exception ignored) {
-                    echo 'WARNING: Notification bootstrap or credential was unavailable. Deployment result is unchanged.'
-                }
+post {
+    always {
+        script {
+            env.DEPLOY_RESULT = currentBuild.currentResult
+            env.BUILD_DURATION_MILLIS = "${currentBuild.duration}"
+            def resultLabel = currentBuild.currentResult ?: 'UNKNOWN'
+            def branchLabel = env.BRANCH_NAME?.toUpperCase() ?: 'UNKNOWN'
+            def shortCommit = env.GIT_COMMIT?.take(8) ?: 'UNKNOWN'
 
-                try {
-                    // Never archive credentials, .env files, backups or raw logs.
+            currentBuild.displayName =
+                "#${env.BUILD_NUMBER} | ${branchLabel} | ${resultLabel}"
+
+            currentBuild.description =
+                "Commit: ${shortCommit} | MEDSP deployment | ${resultLabel}"
+
+            try {
+                withCredentials([string(
+                    credentialsId: 'medsp-discord-webhook',
+                    variable: 'DISCORD_WEBHOOK_URL'
+                )]) {
+                    int rc = sh(returnStatus: true, script: '''
+                        set +x
+                        BUILD_DURATION_SECONDS="$(python3 -c 'import os; print(max(0, int(os.environ["BUILD_DURATION_MILLIS"])) // 1000)')"
+                        export BUILD_DURATION_SECONDS
+                        bash /opt/medsp-ci/verification.sh notify
+                    ''')
+                    if (rc != 0) {
+                        echo 'WARNING: Discord delivery failed; deployment result is unchanged.'
+                    }
+                }
+            } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException interrupted) {
+                throw interrupted
+            } catch (Exception ignored) {
+                echo 'WARNING: Discord notification unavailable; deployment result is unchanged.'
+            }
+
+            try {
+                if (env.INFRASH_RUN_ID && fileExists('.infrash-report.json')) {
                     archiveArtifacts artifacts: '.infrash-report.json',
                         allowEmptyArchive: true, fingerprint: false
-                } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException interrupted) {
-                    throw interrupted
-                } catch (Exception ignored) {
-                    echo 'WARNING: Sanitized deployment report could not be archived.'
                 }
+            } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException interrupted) {
+                throw interrupted
+            } catch (Exception ignored) {
+                echo 'WARNING: Sanitized deployment report could not be archived.'
             }
         }
     }
+}
+
+//    post {
+//        always {
+//            script {
+//                // A missing checkout must not prevent notification. The bootstrap
+//                // script is installed by the administrator outside this workspace.
+//                env.DEPLOY_RESULT = currentBuild.currentResult
+//                env.BUILD_DURATION_SECONDS =
+//                    ((System.currentTimeMillis() - currentBuild.startTimeInMillis) / 1000).toLong().toString()
+//                try {
+//                    withCredentials([string(credentialsId: 'medsp-discord-webhook',
+//                                            variable: 'DISCORD_WEBHOOK_URL')]) {
+//                        int rc = sh(returnStatus: true, script: '''
+//                            set +x
+//                            bash /opt/medsp-ci/verification.sh notify
+//                        ''')
+//                        if (rc != 0) {
+//                            echo 'WARNING: Discord notification was not delivered. Deployment result is unchanged.'
+//                        }
+//                    }
+//                } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException interrupted) {
+//                    // Respect a deliberate interruption of this post action.
+//                    throw interrupted
+//                } catch (Exception ignored) {
+//                    echo 'WARNING: Notification bootstrap or credential was unavailable. Deployment result is unchanged.'
+//                }
+//
+//                try {
+//                    // Never archive credentials, .env files, backups or raw logs.
+//                    archiveArtifacts artifacts: '.infrash-report.json',
+//                        allowEmptyArchive: true, fingerprint: false
+//                } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException interrupted) {
+//                    throw interrupted
+//                } catch (Exception ignored) {
+//                    echo 'WARNING: Sanitized deployment report could not be archived.'
+//                }
+//            }
+//        }
+//    }
 }

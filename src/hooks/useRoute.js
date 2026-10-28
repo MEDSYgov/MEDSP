@@ -12,12 +12,14 @@ import { useEffect, useState } from 'react';
     #/s/<uuid>         تعبئة استبيان (صفحة مستقلة)
     #/maps             عارض الخرائط
     #/admin            مساحة العمل
+    #/screen           شاشات العرض في مبنى الوزارة (عامة، بلا تسجيل دخول)
 */
 
 export function parseRoute(hash) {
   const path = (hash || '').replace(/^#/, '') || '/';
   let m;
   if ((m = path.match(/^\/s\/([\w-]+)/))) return { page: 'fill', id: m[1] };
+  if (path.startsWith('/screen')) return { page: 'screen' };
   if (path.startsWith('/admin')) return { page: 'admin' };
   if (path.startsWith('/maps/risk')) return { page: 'maps', tab: 'risk' };
   if (path.startsWith('/maps')) return { page: 'maps', tab: 'ops' };
@@ -27,6 +29,8 @@ export function parseRoute(hash) {
   /* الرابط القديم لمشروع ترحيل الأنقاض صار مرحلة «التنفيذ» في إدارة الأنقاض */
   if (path.startsWith('/rubble') || path.startsWith('/projects/rubble-transfer')) return { page: 'rubble' };
   if ((m = path.match(/^\/ops\/([\w-]+)/))) return { page: 'ops', id: m[1] };
+  /* مشروع تجريبي ثابت — لاختبار خط النشر الآلي */
+  if (path.startsWith('/projects/test')) return { page: 'test-project' };
   if ((m = path.match(/^\/projects\/([\w-]+)/))) return { page: 'project', id: m[1] };
   if (path.startsWith('/projects')) return { page: 'projects' };
   return { page: 'overview' };
@@ -43,6 +47,8 @@ export const href = {
   atlas: () => '#/rubble-map',
   rubbleMap: () => '#/rubble/map',
   project: (id) => `#/projects/${id}`,
+  testProject: () => '#/projects/test',
+  screen: () => '#/screen',
 };
 
 export function navigate(to) {
