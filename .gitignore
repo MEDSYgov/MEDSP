@@ -29,3 +29,6 @@ server-data
 .env
 .env.*
 !.env.example
+
+PACKAGE-MANIFEST.json
+SHA256SUMS
