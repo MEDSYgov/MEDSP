@@ -8,11 +8,10 @@ let lib;
 export async function pdfjs() {
   if (!lib) {
     /* النسخة «legacy» تعمل على المتصفحات الأقدم أيضاً (أجهزة الوزارة لا تُحدَّث دائماً) */
-    lib = Promise.all([
-      import('pdfjs-dist/legacy/build/pdf.min.mjs'),
-      import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
-    ]).then(([m, worker]) => {
-      m.GlobalWorkerOptions.workerSrc = worker.default;
+    lib = import('pdfjs-dist/legacy/build/pdf.min.mjs').then((m) => {
+      /* العامل يُبنى ملفاً بامتداد .js: بعض إعدادات Nginx ترسل ملفات .mjs بنوع خاطئ
+         فيرفض المتصفح تشغيلها (السبب المرجّح لتعذّر القراءة على سيرفر التجربة، 2026-10-28) */
+      m.GlobalWorkerOptions.workerPort = new Worker(new URL('./pdf.worker.js', import.meta.url), { type: 'module' });
       return m;
     });
   }
