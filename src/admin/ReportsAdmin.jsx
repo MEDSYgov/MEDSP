@@ -38,12 +38,13 @@ function Editor({ initial, onDone, onCancel }) {
     if (f.size > MAX_BYTES) { setErr('حجم الملف أكبر من 50 ميغابايت'); return; }
     const pdf = f.type === 'application/pdf' ? f : new File([f], f.name, { type: 'application/pdf' });
     setFile(pdf); setReading(true);
+    if (!m.title) set('title', f.name.replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ').trim());
     try {
       setInfo(await inspectPdf(pdf));
-      if (!m.title) set('title', f.name.replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ').trim());
-    } catch {
-      setErr('تعذّرت قراءة الملف. تأكد أنه PDF سليم وغير محمي بكلمة مرور.');
-      setFile(null);
+    } catch (x) {
+      /* المعاينة اختيارية: يبقى الرفع ممكناً دون غلاف ولا عدد صفحات */
+      console.error('[reports] inspect', x);
+      setInfo({ failed: true, reason: x?.name === 'PasswordException' ? 'الملف محمي بكلمة مرور' : (x?.message || String(x)) });
     } finally { setReading(false); }
   };
 
@@ -66,8 +67,8 @@ function Editor({ initial, onDone, onCancel }) {
     setBusy(true);
     try {
       const out = editing
-        ? await updateReport(initial, { meta, file, thumb: info?.thumb, pages: info?.pages })
-        : await createReport({ file, thumb: info?.thumb, pages: info?.pages, meta });
+        ? await updateReport(initial, { meta, file, thumb: info?.thumb, pages: info?.pages ?? null })
+        : await createReport({ file, thumb: info?.thumb, pages: info?.pages ?? null, meta });
       onDone(out);
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
@@ -83,6 +84,7 @@ function Editor({ initial, onDone, onCancel }) {
           {info?.preview ? <img src={info.preview} alt="" /> : <Glyph name="pdf" />}
           <span>
             {reading ? 'جارٍ قراءة الملف…'
+              : file && info?.failed ? <><strong>{file.name}</strong><small>{fmtSize(file.size)} · تعذّرت معاينته، ويمكن رفعه دون صورة غلاف</small><small className="ra-why" dir="auto">{info.reason}</small></>
               : file ? <><strong>{file.name}</strong><small><bdi dir="ltr">{info?.pages}</bdi> صفحة · {fmtSize(file.size)} · اضغط للاستبدال</small></>
                 : editing ? <><strong>استبدال الملف</strong><small>اختياري. الحالي: <bdi dir="ltr">{initial.pages || '—'}</bdi> صفحة · {fmtSize(initial.file_size)}</small></>
                   : <><strong>اختر ملف PDF أو اسحبه إلى هنا</strong><small>حتى 50 ميغابايت</small></>}

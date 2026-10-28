@@ -199,3 +199,4 @@
   .ra-list__act { grid-column: 1 / -1; }
 }
 @media (max-width: 520px) { .ra-vis { grid-template-columns: 1fr; } }
+.ra-drop .ra-why { font-size: 0.72rem; color: var(--ink-faint); opacity: 0.8; word-break: break-word; }
