@@ -38,7 +38,7 @@ pipeline {
         }
 
         stage('Checkout') {
-            options { timeout(time: 6, unit: 'MINUTES') }
+            options { timeout(time: 60, unit: 'MINUTES') }
             steps {
                 script { env.LAST_PHASE = 'Checkout' }
                 deleteDir()
@@ -75,7 +75,7 @@ pipeline {
             options { lock(resource: 'medsp-host-deploy') }
             stages {
                 stage('Build') {
-                    options { timeout(time: 6, unit: 'MINUTES') }
+                    options { timeout(time: 60, unit: 'MINUTES') }
                     steps {
                         script { env.LAST_PHASE = 'Build' }
                         sh 'bash infrash/build.sh'
