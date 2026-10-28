@@ -12,6 +12,8 @@ import { useEffect, useState } from 'react';
     #/s/<uuid>         تعبئة استبيان (صفحة مستقلة)
     #/maps             عارض الخرائط
     #/admin            مساحة العمل
+    #/reports          مكتبة التقارير (PDF)
+    #/reports/<uuid>   تقرير مفتوح في المستعرض
     #/screen           شاشات العرض في مبنى الوزارة (عامة، بلا تسجيل دخول)
 */
 
@@ -20,6 +22,8 @@ export function parseRoute(hash) {
   let m;
   if ((m = path.match(/^\/s\/([\w-]+)/))) return { page: 'fill', id: m[1] };
   if (path.startsWith('/screen')) return { page: 'screen' };
+  if ((m = path.match(/^\/reports\/([\w-]+)/))) return { page: 'reports', id: m[1] };
+  if (path.startsWith('/reports')) return { page: 'reports' };
   if (path.startsWith('/admin')) return { page: 'admin' };
   if (path.startsWith('/maps/risk')) return { page: 'maps', tab: 'risk' };
   if (path.startsWith('/maps')) return { page: 'maps', tab: 'ops' };
@@ -49,6 +53,7 @@ export const href = {
   project: (id) => `#/projects/${id}`,
   testProject: () => '#/projects/test',
   screen: () => '#/screen',
+  reports: () => '#/reports',
 };
 
 export function navigate(to) {
@@ -59,10 +64,14 @@ export default function useRoute() {
   const [route, setRoute] = useState(() => parseRoute(window.location.hash));
 
   useEffect(() => {
+    let prev = parseRoute(window.location.hash);
     const on = () => {
-      setRoute(parseRoute(window.location.hash));
-      /* صفحة جديدة تبدأ من أعلى — كما يتوقع المستخدم من رابط */
-      window.scrollTo({ top: 0 });
+      const next = parseRoute(window.location.hash);
+      setRoute(next);
+      /* صفحة جديدة تبدأ من أعلى — كما يتوقع المستخدم من رابط.
+         فتح تقرير وإغلاقه في المستعرض لا يغيّر موضعك في المكتبة. */
+      if (!(prev.page === 'reports' && next.page === 'reports')) window.scrollTo({ top: 0 });
+      prev = next;
     };
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);

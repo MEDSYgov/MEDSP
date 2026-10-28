@@ -149,6 +149,12 @@ export default function MainNav({ route, ops, projects, projectsStatus, can = ()
             التقرير الشهري
           </a>}
 
+          {can('reports') && <a href={href.reports()}
+            className={`categories__item${route.page === 'reports' ? ' is-active' : ''}`}
+            aria-current={route.page === 'reports' ? 'page' : undefined}>
+            التقارير
+          </a>}
+
           {can('ops') && <a href={href.maps()}
             className={`categories__item${route.page === 'maps' ? ' is-active' : ''}`}
             aria-current={route.page === 'maps' ? 'page' : undefined}>
