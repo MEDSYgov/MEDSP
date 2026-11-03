@@ -1,6 +1,7 @@
 import ThemeToggle from './ThemeToggle';
 import Icon from './Icon';
 import NotificationBell from './NotificationBell';
+import InstallButton from './InstallButton';
 
 export default function Masthead({ theme, onToggleTheme, showLogin, user }) {
   return (
@@ -30,6 +31,7 @@ export default function Masthead({ theme, onToggleTheme, showLogin, user }) {
                 دخول
               </a>
             )}
+            <InstallButton />
             {user?.isAdmin && <NotificationBell />}
             <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           </div>
