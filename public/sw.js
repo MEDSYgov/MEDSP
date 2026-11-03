@@ -11,7 +11,7 @@
   بلا شبكة يتولاه صندوق الصادر في الصفحة نفسها.
 */
 
-const VERSION = 'medsp-v7';
+const VERSION = 'medsp-v8';
 
 /*
   ignoreVary: سكربتات Vite تُطلب بوضع crossorigin فتحمل ترويسة Origin،
@@ -103,4 +103,29 @@ self.addEventListener('fetch', (event) => {
     if (cached) { event.waitUntil(network); return cached; }
     return (await network) || Response.error();
   })());
+});
+
+/*
+  إشعارات الدفع للمدراء (تحديث البيانات). المحتوى نص عام فقط،
+  والضغط عليه يفتح المنصة (أو يُركّز نافذتها المفتوحة) على القسم المعني.
+*/
+self.addEventListener('push', (event) => {
+  let m = {};
+  try { m = event.data ? event.data.json() : {}; } catch { m = { title: event.data?.text() }; }
+  event.waitUntil(self.registration.showNotification(m.title || 'منصة مديرية التخطيط والإحصاء', {
+    body: m.body || '', lang: 'ar', dir: 'rtl', tag: m.tag || 'medsp',
+    icon: './icons/icon-192.png', badge: './icons/icon-192.png',
+    data: { link: m.link || '#/' },
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL(`./${event.notification.data?.link || '#/'}`, self.registration.scope).href;
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    for (const c of list) {
+      if (c.url.startsWith(self.registration.scope) && 'focus' in c) { c.navigate?.(target); return c.focus(); }
+    }
+    return self.clients.openWindow(target);
+  }));
 });

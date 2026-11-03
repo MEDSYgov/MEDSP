@@ -19,3 +19,6 @@ export const configMissing = !SUPABASE_URL || !SUPABASE_KEY;
 if (configMissing) {
   console.error('[MEDSP] إعدادات الاتصال ناقصة: تأكد من SUPABASE_URL و SUPABASE_KEY في ملف .env');
 }
+
+/* المفتاح العلني لإشعارات الدفع؛ فارغ = الإشعارات داخل المنصة فقط */
+export const VAPID_PUBLIC_KEY = runtime.VAPID_PUBLIC_KEY || '';
