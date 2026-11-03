@@ -34,6 +34,7 @@ if (fs.existsSync(envFile)) {
 const { default: dataHandler, publicHandler } = await import('./dataHandler.js');
 const { default: screenHandler } = await import('./screenHandler.js');
 const { configScript, publicConfig } = await import('./runtimeConfig.js');
+const { announceDataUpdates } = await import('./push.js');
 
 const cfg = publicConfig();
 if (!cfg.SUPABASE_URL || !cfg.SUPABASE_KEY) {
@@ -97,4 +98,6 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`[MEDSP] يعمل على http://${HOST}:${PORT} — قاعدة البيانات: ${cfg.SUPABASE_URL}`);
+  /* بعد كل نشر: إشعار المدراء بما تغيّر من البيانات (لا يعطّل الخادم إن فشل) */
+  setTimeout(() => announceDataUpdates(process.env.MEDSP_DATA_DIR || path.join(process.cwd(), 'server-data')), 5000);
 });
