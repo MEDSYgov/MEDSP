@@ -18,6 +18,8 @@ export const RUBBLE_PROJECT = {
   surveysCount: 1983,
 };
 
+const DIR_C = '#4f8fdc';
+const PROJ_C = '#2f9e74';
 const fmt = (n) => Math.round(Number(n) || 0).toLocaleString('en-US');
 const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
 /* توحيد الكتابة للمطابقة: ادلب = إدلب، ريف حلب = حلب */
@@ -154,6 +156,7 @@ function FilterBar({ f, setF, surveys, toggle }) {
     const pool = surveys.filter((s) => matchSurvey(s, f, key));
     const m = new Map();
     for (const s of pool) {
+      if (s.src === 'dir' && !GEO.includes(key)) continue;
       let v = valueOf[key](s);
       if (key === 'co') v = v || 'غير محدد';
       if (v) m.set(v, (m.get(v) || 0) + 1);
@@ -256,21 +259,30 @@ function PhaseDonut({ phases, total }) {
 
 /* ---------------- الأقسام ---------------- */
 
-function Summary({ t, items, filtered, plan, phases, counts }) {
+function Summary({ t, items, filtered, plan, phases, counts, dirVol, combined }) {
   return (
     <section className="rx-top">
-      <div className="rx-top__ring">{plan ? <Ring value={pct(t.executed, t.planned)} /> : <PhaseDonut phases={phases} total={t.surveyVol} />}</div>
+      {combined && (
+        <div className="rx-combo">
+          <div><span>إجمالي الأنقاض المرحّلة</span><b className="rx-combo__v">{fmt((plan ? t.executed : t.surveyVol) + dirVol)}</b><em>م³ (مشاريع + مديريات)</em></div>
+          <div className="rx-combo__split">
+            <span><i style={{ background: PROJ_C }} />المشاريع المشتركة <b>{fmt(plan ? t.executed : t.surveyVol)}</b></span>
+            <span><i style={{ background: DIR_C }} />أعمال المديريات <b>{fmt(dirVol)}</b></span>
+          </div>
+        </div>
+      )}
+      <div className="rx-top__ring">{plan ? <><Ring value={pct(t.executed, t.planned)} /><small className="rx-top__note">نسبة إنجاز المشاريع من المخطط لها</small></> : <PhaseDonut phases={phases} total={t.surveyVol} />}</div>
       {!plan ? (
         <div className="rx-top__nums">
-          <div className="rx-num rx-num--b"><span>الأنقاض المرحّلة</span><Figure value={t.surveyVol} className="rx-num__v" /><em>م³ موثّقة ميدانياً</em></div>
+          <div className="rx-num rx-num--b"><span>الأنقاض المرحّلة (المشاريع)</span><Figure value={t.surveyVol} className="rx-num__v" /><em>م³ موثّقة ميدانياً</em></div>
           <div className="rx-num rx-num--d"><span>مواقع العمل</span><Figure value={t.surveys} className="rx-num__v" /><em>استمارة ميدانية</em></div>
           <div className="rx-num rx-num--a"><span>المحافظات</span><Figure value={counts.govs} className="rx-num__v" /><em>{fmt(counts.areas)} منطقة</em></div>
           <div className="rx-num rx-num--c"><span>الجهات المنفذة</span><Figure value={counts.cos} className="rx-num__v" /><em>جهة</em></div>
         </div>
       ) : <div className="rx-top__nums">
-        <div className="rx-num rx-num--a"><span>المخطط ترحيله</span><Figure value={t.planned} className="rx-num__v" /><em>م³</em></div>
-        <div className="rx-num rx-num--b"><span>تم ترحيله</span><Figure value={t.executed} className="rx-num__v" /><em>م³</em></div>
-        <div className="rx-num rx-num--c"><span>بانتظار الترحيل</span><Figure value={Math.max(0, t.planned - t.executed)} className="rx-num__v" /><em>م³</em></div>
+        <div className="rx-num rx-num--a"><span>المخطط ترحيله للمشاريع</span><Figure value={t.planned} className="rx-num__v" /><em>م³</em></div>
+        <div className="rx-num rx-num--b"><span>تم ترحيله (المشاريع)</span><Figure value={t.executed} className="rx-num__v" /><em>م³</em></div>
+        <div className="rx-num rx-num--c"><span>بانتظار الترحيل (المشاريع)</span><Figure value={Math.max(0, t.planned - t.executed)} className="rx-num__v" /><em>م³</em></div>
         <div className="rx-num rx-num--d"><span>مواقع موثّقة ميدانياً</span><Figure value={t.surveys} className="rx-num__v" /><em>{fmt(t.surveyVol)} م³ موثّقة</em></div>
       </div>}
       <div className="rx-insights">
@@ -451,11 +463,13 @@ function placed(basemap, s) {
   لا شيء ← المحافظات، محافظة ← مناطقها، منطقة ← نواحيها، ناحية ← قراها.
   الضغط على أي صف ينزل مستوى، و«الشريط» أعلاه يعيد إلى أي مستوى سابق.
 */
-function Levels({ surveys, f, setF }) {
+function Levels({ surveys, dir = [], f, setF }) {
   const depth = GEO.findIndex((k) => k !== 'village' && f[k]?.length !== 1);
   const level = GEO[depth === -1 ? 3 : depth];
-  const rows = sumBy(surveys, (s) => valueOf[level](s), (s) => s.vol);
+  const dirBy = new Map(sumBy(dir, (s) => valueOf[level](s), (s) => s.vol).map((d) => [d.label, d.value]));
+  const rows = sumBy([...surveys, ...dir], (s) => valueOf[level](s), (s) => s.vol);
   const sites = new Map(sumBy(surveys, (s) => valueOf[level](s)).map((d) => [d.label, d.value]));
+  const ops = new Map(sumBy(dir, (s) => valueOf[level](s)).map((d) => [d.label, d.value]));
   const total = rows.reduce((a, r) => a + r.value, 0) || 1;
   const peak = rows[0]?.value || 1;
   const crumbs = [{ label: 'سوريا', go: () => setF({ ...f, gov: [], area: [], town: [] }) }];
@@ -470,7 +484,8 @@ function Levels({ surveys, f, setF }) {
     <section className="rx-block">
       <header className="rx-head">
         <h2>الكميات حسب المستوى الإداري</h2>
-        <p>الكميات المرحّلة على المستوى التالي للاختيار الحالي. اضغط أي صف للنزول مستوى.</p>
+        <p>الكميات المرحّلة على المستوى التالي للاختيار الحالي. اضغط أي صف للنزول مستوى.
+          {dir.length > 0 && <> <span className="rx-key"><i style={{ background: PROJ_C }} />المشاريع المشتركة</span> <span className="rx-key"><i style={{ background: DIR_C }} />أعمال المديريات</span></>}</p>
       </header>
       <nav className="rx-crumbs" aria-label="المستوى الجغرافي">
         {crumbs.map((c, i) => (
@@ -484,10 +499,13 @@ function Levels({ surveys, f, setF }) {
       <ol className="rx-levels">
         {rows.slice(0, 15).map((r, i) => (
           <li key={r.label}>
-            <button type="button" onClick={() => drill(r.label)} disabled={level === 'village'} style={{ '--c': PAL[i % PAL.length] }}>
+            <button type="button" onClick={() => drill(r.label)} disabled={level === 'village'} style={{ '--c': dir.length ? PROJ_C : PAL[i % PAL.length] }}>
               <span className="rx-levels__n">{i + 1}</span>
-              <span className="rx-levels__name">{r.label}<small>{fmt(sites.get(r.label))} موقعاً</small></span>
-              <span className="rx-levels__bar"><span style={{ width: `${(r.value / peak) * 100}%` }} /></span>
+              <span className="rx-levels__name">{r.label}<small>{[sites.get(r.label) && `${fmt(sites.get(r.label))} موقعاً`, ops.get(r.label) && `${fmt(ops.get(r.label))} عملية مديرية`].filter(Boolean).join(' · ')}</small></span>
+              <span className="rx-levels__bar rx-levels__bar--split">
+                <span style={{ width: `${((r.value - (dirBy.get(r.label) || 0)) / peak) * 100}%` }} />
+                {dirBy.get(r.label) > 0 && <span style={{ width: `${(dirBy.get(r.label) / peak) * 100}%`, background: DIR_C }} />}
+              </span>
               <b>{fmt(r.value)}<small> م³ · {pct(r.value, total)}%</small></b>
             </button>
           </li>
@@ -501,7 +519,7 @@ function Levels({ surveys, f, setF }) {
 /* تدرّج الكثافة للمحافظات: من فاتح إلى أخضر الهوية العميق */
 const SCALE = ['#e6f2ee', '#bfe1d6', '#8cc9b8', '#55a996', '#2f8a77', '#126b5b'];
 
-function Field({ surveys, allSurveys, basemap, t, f, toggle }) {
+function Field({ surveys, dir = [], allSurveys, basemap, t, f, toggle }) {
   const narrow = typeof window !== 'undefined' && window.innerWidth < 640;
   const pts = useMemo(() => {
     const m = new Map();
@@ -514,8 +532,15 @@ function Field({ surveys, allSurveys, basemap, t, f, toggle }) {
       cur.count += 1;
       m.set(code, cur);
     }
+    for (const d of dir) {
+      if (!d.lat || !d.lon) continue;
+      const code = `d${d.site}`;
+      const cur = m.get(code) || { code, name: `${d.town} — أعمال المديريات`, governorate: d.gov, lat: d.lat, lon: d.lon, count: 0, vol: 0, color: DIR_C };
+      cur.vol += d.vol; cur.count = Math.max(1, Math.round(Math.sqrt(cur.vol / 500)));
+      m.set(code, cur);
+    }
     return { list: [...m.values()].sort((a, b) => b.count - a.count), outside };
-  }, [surveys, basemap]);
+  }, [surveys, dir, basemap]);
 
   /* إطار الخريطة على منطقة العمل (من كل المواقع لا المصفّاة، حتى لا يقفز الإطار مع كل ضغطة) */
   const fit = useMemo(() => {
@@ -531,7 +556,7 @@ function Field({ surveys, allSurveys, basemap, t, f, toggle }) {
     return { minLat: cLat - hLat, maxLat: cLat + hLat, minLon: cLon - hLon, maxLon: cLon + hLon };
   }, [allSurveys, basemap]);
 
-  const gov = sumBy(surveys, (s) => govName(s.gov), (s) => s.vol);
+  const gov = sumBy([...surveys, ...dir], (s) => govName(s.gov), (s) => s.vol);
   const govFill = useMemo(() => {
     if (!basemap) return null;
     const peak = gov[0]?.value || 1;
@@ -556,6 +581,7 @@ function Field({ surveys, allSurveys, basemap, t, f, toggle }) {
             <span>كثافة الكميات بالمحافظة</span>
             <span className="rx-scale">{SCALE.map((c) => <i key={c} style={{ background: c }} />)}</span>
             <span className="rx-mapcard__dot"><i /> موقع عمل (الحجم = عدد الاستمارات)</span>
+            {dir.length > 0 && <span className="rx-mapcard__dot"><i style={{ background: DIR_C }} /> أعمال المديريات (الحجم = الكمية)</span>}
             {pts.outside > 0 && <span className="rx-mapcard__warn">{fmt(pts.outside)} استمارة بإحداثيات خارج الحدود لم تُرسم</span>}
           </div>
           <SyriaMap basemap={basemap} locations={pts.list} noun="الاستمارات" className="rx-map" height={narrow ? 400 : 520}
@@ -563,7 +589,7 @@ function Field({ surveys, allSurveys, basemap, t, f, toggle }) {
         </div>
       )}
       <div className="rx-trio">
-        <div className="rx-card"><h3>الكميات حسب المحافظة</h3><Stack data={gov} total={t.surveyVol} unit="م³" dim="gov" f={f} toggle={toggle} /></div>
+        <div className="rx-card"><h3>الكميات حسب المحافظة{dir.length > 0 && <small> (مع أعمال المديريات)</small>}</h3><Stack data={gov} total={t.surveyVol + dir.reduce((a, d) => a + d.vol, 0)} unit="م³" dim="gov" f={f} toggle={toggle} /></div>
         <div className="rx-card"><h3>نوع الموقع</h3><Stack data={nature} total={t.surveyVol} unit="م³" dim="nature" f={f} toggle={toggle} /></div>
         <div className="rx-card"><h3>وجهة الأنقاض</h3><Stack data={dump} total={t.surveyVol} unit="م³" dim="dump" f={f} toggle={toggle} colors={['#e0735a', '#2f9e74', '#4f8fdc']} /></div>
       </div>
@@ -919,6 +945,27 @@ export default function RubbleTransfer({ basemap }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
   const [f, setF] = useState(EMPTY);
+  /* المفتاح الرئيسي: مُشغّل افتراضياً = المشاريع المشتركة + أعمال المديريات */
+  const [combined, setCombined] = useState(true);
+  const [svc, setSvc] = useState(null);
+  useEffect(() => { getData('services').then(setSvc).catch(() => setSvc(false)); }, []);
+
+  /* أعمال المديريات: تقارير العمليات ← الأعمال الخدمية ← الأنقاض (م³) */
+  const dirAll = useMemo(() => {
+    if (!svc) return [];
+    const B = 5 + svc.dims.length;
+    const a = svc.metrics.findIndex((m) => m.key === 'rubble');
+    if (a < 0) return [];
+    const out = [];
+    for (const r of svc.records) {
+      const vol = r[B + a] || 0;
+      if (!(vol > 0)) continue;
+      const site = svc.dict.sites[r[4]];
+      out.push({ src: 'dir', site: r[4], gov: govName(svc.dict.govs[r[1]] || site?.governorate), area: site?.district || 'غير محدد',
+        town: site?.subdistrict || 'غير محدد', village: site?.name, lat: site?.lat, lon: site?.lon, vol });
+    }
+    return out;
+  }, [svc]);
 
   useEffect(() => {
     /*
@@ -933,7 +980,7 @@ export default function RubbleTransfer({ basemap }) {
   }, []);
 
   /* كل تغيير في الفلاتر يمرّ بـ prune حتى يبقى التسلسل الإداري متّسقاً */
-  const setFp = (next) => setF((cur) => prune(typeof next === 'function' ? next(cur) : next, data?.surveys || []));
+  const setFp = (next) => setF((cur) => prune(typeof next === 'function' ? next(cur) : next, [...(data?.surveys || []), ...(combined ? dirAll : [])]));
   const toggle = (dim, v) => setFp((cur) => ({ ...cur, [dim]: cur[dim].includes(v) ? cur[dim].filter((x) => x !== v) : [...cur[dim], v] }));
 
   const view = useMemo(() => {
@@ -944,8 +991,11 @@ export default function RubbleTransfer({ basemap }) {
     const deep = data.phases.length > 0 && DIMS.some((d) => !['gov', 'phase'].includes(d.key) && f[d.key]?.length);
     const plan = data.phases.length > 0 && !deep;
     const rows = plan ? data.phases.filter((r) => matchPlan(r, f)) : [];
-    return { plan, deep, surveys, ...build(rows, surveys, data.live || 0, plan) };
-  }, [data, f]);
+    /* المديريات بلا مرحلة ولا جهة ولا وجهة ولا طبيعة موقع: أي فلتر منها يعرض المشاريع وحدها */
+    const nonGeo = DIMS.some((d) => !GEO.includes(d.key) && f[d.key].length);
+    const dir = combined && !nonGeo ? dirAll.filter((x) => matchSurvey(x, f)) : [];
+    return { plan, deep, surveys, dir, nonGeo, dirVol: dir.reduce((a, x) => a + x.vol, 0), ...build(rows, surveys, data.live || 0, plan) };
+  }, [data, f, combined, dirAll]);
 
   if (error) return <div className="pending"><h3>تعذّر تحميل بيانات المشروع</h3><p>حدّث الصفحة وحاول مجدداً.</p></div>;
   if (!view) return <p className="results__empty">جارٍ التحميل…</p>;
@@ -965,16 +1015,31 @@ export default function RubbleTransfer({ basemap }) {
 
   return (
     <div className="rx">
-      <FilterBar f={f} setF={setFp} surveys={data.surveys} toggle={toggle} />
+      <div className="rx-switch">
+        <label className="rx-switch__ctl">
+          <input type="checkbox" role="switch" checked={combined} onChange={(e) => setCombined(e.target.checked)} />
+          <span className="rx-switch__track" aria-hidden="true"><span /></span>
+          <b>{combined ? 'المشاريع المشتركة + أعمال المديريات' : 'المشاريع المشتركة فقط'}</b>
+        </label>
+        <small>{combined
+          ? (svc === null ? 'جارٍ تحميل أعمال المديريات…' : svc === false ? 'تعذّر تحميل أعمال المديريات؛ الأرقام للمشاريع فقط.'
+            : 'الأرقام تجمع المسارين، وأعمال المديريات بلونها المميز. المخطط له خاص بالمشاريع.')
+          : 'شغّل المفتاح لإضافة أعمال المديريات إلى الأرقام.'}</small>
+      </div>
+      {combined && view.nonGeo && (
+        <p className="rx-deep">فلاتر المرحلة والجهة المنفذة ووجهة الأنقاض وطبيعة الموقع خاصة بالمشاريع المشتركة، لذلك تعرض الأرقام الآن المشاريع وحدها دون أعمال المديريات.</p>
+      )}
+      <FilterBar f={f} setF={setFp} surveys={combined ? [...data.surveys, ...dirAll] : data.surveys} toggle={toggle} />
       {view.deep && (
         <p className="rx-deep">الخطة (الكمية المخطط لها) معتمدة على مستوى المحافظة والمرحلة فقط، لذلك تعرض الأرقام عند الفلترة بالمنطقة أو الناحية أو الجهة
           الكمياتِ المنفّذة فعلاً من استمارات المواقع المطابقة، دون نسب إنجاز.</p>
       )}
-      <Summary t={view.t} items={view.items} filtered={filtered} plan={view.plan} phases={view.phases} counts={view.counts} />
+      <Summary t={view.t} items={view.items} filtered={filtered} plan={view.plan} phases={view.phases} counts={view.counts}
+        dirVol={view.dirVol} combined={combined && svc && !view.nonGeo} />
       <PhaseRibbon phases={view.phases} f={f} toggle={toggle} plan={view.plan} />
-      <Levels surveys={view.surveys} f={f} setF={setFp} />
+      <Levels surveys={view.surveys} dir={view.dir} f={f} setF={setFp} />
       <Matrix govs={view.govs} f={f} toggle={toggle} setF={setFp} plan={view.plan} />
-      <Field surveys={view.surveys} allSurveys={data.surveys} basemap={basemap} t={view.t} f={f} toggle={toggle} />
+      <Field surveys={view.surveys} dir={view.dir} allSurveys={data.surveys} basemap={basemap} t={view.t} f={f} toggle={toggle} />
       <Productivity surveys={view.surveys} f={f} toggle={toggle} />
       <Contractors list={view.contractors} total={view.t.surveyVol} f={f} toggle={toggle} />
       <Registry surveys={view.surveys} allSurveys={data.surveys} f={f} toggle={toggle} />
