@@ -24,10 +24,11 @@ import { lazy, Suspense } from 'react';
 
 /* صفحة الشاشات تُحمَّل وحدها، فلا يثقل بها باقي المنصة */
 const ScreenPage = lazy(() => import('./screen/ScreenPage'));
+const ReportsPage = lazy(() => import('./reports/ReportsPage'));
 
 
 /* الأقسام: ops (النظرة العامة والعمليات والخرائط) · monthly · rubble · projects */
-const SECTION_OF = { overview: 'ops', ops: 'ops', maps: 'ops', monthly: 'monthly', rubble: 'rubble', projects: 'projects', project: 'projects', 'test-project': 'projects' };
+const SECTION_OF = { overview: 'ops', ops: 'ops', maps: 'ops', monthly: 'monthly', rubble: 'rubble', projects: 'projects', project: 'projects', 'test-project': 'projects', reports: 'reports' };
 const FIRST = [['ops', '#/'], ['rubble', '#/rubble'], ['monthly', '#/monthly'], ['projects', '#/projects']];
 const WORKSPACE = { super_admin: 'مساحة العمل', admin: 'مساحة العمل', reviewer: 'مراجعة الاستبيانات', collector: 'استبياناتي' };
 
@@ -61,7 +62,8 @@ export default function App() {
   );
   return (
     <AuthGate wrap={frame}
-      guest={route.page === 'overview' ? () => <PublicOverview theme={theme} toggleTheme={toggleTheme} /> : undefined}>
+      guest={route.page === 'overview' || route.page === 'reports'
+        ? () => <PublicSite route={route} theme={theme} toggleTheme={toggleTheme} /> : undefined}>
       {({ me, signOut }) => <Platform me={me} signOut={() => { clearData(); signOut(); }} theme={theme} toggleTheme={toggleTheme} route={route} />}
     </AuthGate>
   );
@@ -72,18 +74,40 @@ export default function App() {
   بقية الأقسام تبقى خلف الدخول: الضغط على أي تصنيف يفتح نموذج الدخول،
   وبعد الدخول يصل الزائر إلى التقرير الذي ضغط عليه.
 */
-function PublicOverview({ theme, toggleTheme }) {
+function PublicSite({ route, theme, toggleTheme }) {
+  useEffect(() => {
+    const site = 'منصة مديرية التخطيط والإحصاء';
+    document.title = route.page === 'reports' ? `التقارير — ${site}` : `${site} — وزارة الطوارئ وإدارة الكوارث`;
+  }, [route.page]);
+  return (
+    <div className="layout">
+      <Masthead theme={theme} onToggleTheme={toggleTheme} showLogin />
+      {/* الزائر: النظرة العامة والتقارير العامة فقط */}
+      <nav className="categories mainnav" aria-label="التنقل الرئيسي">
+        <div className="shell"><div className="mainnav__bar">
+          <a href={href.overview()} className={`categories__item${route.page === 'overview' ? ' is-active' : ''}`}>النظرة العامة</a>
+          <a href={href.reports()} className={`categories__item${route.page === 'reports' ? ' is-active' : ''}`}>التقارير</a>
+        </div></div>
+      </nav>
+      <main>
+        {route.page === 'reports'
+          ? <Suspense fallback={null}><ReportsPage route={route} guest /></Suspense>
+          : <PublicOverview />}
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+function PublicOverview() {
   const [state, setState] = useState({ status: 'loading' });
   useEffect(() => {
-    document.title = 'منصة مديرية التخطيط والإحصاء — وزارة الطوارئ وإدارة الكوارث';
     Promise.all([getData('overview'), getData('basemap')])
       .then(([report, basemap]) => setState({ status: 'ready', report, basemap }))
       .catch(() => setState({ status: 'error' }));
   }, []);
   return (
-    <div className="layout">
-      <Masthead theme={theme} onToggleTheme={toggleTheme} showLogin />
-      <main>
+    <>
         <article className="shell">
           <div className="report__head"><h1>النظرة العامة</h1></div>
           <p className="report__summary">ملخّص كل عمليات الوزارة المسجّلة في الفترة المختارة.</p>
@@ -93,15 +117,14 @@ function PublicOverview({ theme, toggleTheme }) {
             <Home report={state.report} basemap={state.basemap} onOpen={(id) => { window.location.hash = href.ops(id); }} />
           )}
         </article>
-      </main>
-      <Footer />
-    </div>
+    </>
   );
 }
 
 function Platform({ me, signOut, theme, toggleTheme, route }) {
   const full = me.role === 'super_admin' || me.role === 'admin';
-  const can = (sec) => full || (me.role !== 'collector' && (!me.sections?.length || me.sections.includes(sec)));
+  /* التقارير متاحة لكل حساب له دور (عدا جامع البيانات)، دون تقييد بالأقسام */
+  const can = (sec) => full || (me.role !== 'collector' && (sec === 'reports' || !me.sections?.length || me.sections.includes(sec)));
   const allowedHere = route.page === 'admin' || can(SECTION_OF[route.page] || 'ops');
   /* صفحة غير مسموحة (مثل النظرة العامة لحساب الأنقاض فقط) ← أول قسم مسموح */
   useEffect(() => {
@@ -199,6 +222,7 @@ function Platform({ me, signOut, theme, toggleTheme, route }) {
     else if (route.page === 'test-project') page = 'مشروع تجريبي';
     else if (route.page === 'admin') page = 'مساحة العمل';
     else if (route.page === 'monthly') page = 'التقرير الشهري';
+    else if (route.page === 'reports') page = 'التقارير';
     else if (route.page === 'rubble') page = 'إدارة الأنقاض';
     else if (route.page === 'maps') page = route.tab === 'risk' ? 'خريطة الأخطار المتعددة' : 'خريطة العمليات';
     document.title = page ? `${page} — ${site}` : `${site} — وزارة الطوارئ وإدارة الكوارث`;
@@ -244,6 +268,12 @@ function Platform({ me, signOut, theme, toggleTheme, route }) {
             <p className="report__summary">متابعة الأنقاض عبر مراحلها: من التقدير، إلى التخطيط والدراسة، فالتنفيذ والترحيل، ثم التدوير والاستثمار.</p>
             <RubbleHub basemap={base.basemap} initial={route.tab} />
           </section>
+        )}
+
+        {allowedHere && route.page === 'reports' && (
+          <Suspense fallback={<section className="shell"><div className="pending"><p>جارٍ التحميل…</p></div></section>}>
+            <ReportsPage route={route} />
+          </Suspense>
         )}
 
         {allowedHere && route.page === 'monthly' && (

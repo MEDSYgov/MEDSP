@@ -1,5 +1,6 @@
 import EntitiesPanel from './EntitiesPanel';
 import ScreenPanel from './ScreenPanel';
+import ReportsAdmin from './ReportsAdmin';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as store from '../projects/store';
 import SurveyBuilder from './SurveyBuilder';
@@ -545,7 +546,7 @@ export default function AdminApp({ basemap, me }) {
   const sections = collector ? [{ id: 'mine', label: 'استبياناتي' }, { id: 'me', label: 'حسابي' }] : [
     { id: 'projects', label: reviewer ? 'الاستبيانات المسندة إليّ' : 'المشاريع' },
     ...(reviewer ? [] : [{ id: 'entities', label: 'الجهات العاملة' }]),
-    ...(me.role === 'super_admin' || me.role === 'admin' ? [{ id: 'screens', label: 'شاشات العرض' }] : []),
+    ...(me.role === 'super_admin' || me.role === 'admin' ? [{ id: 'reports', label: 'التقارير' }, { id: 'screens', label: 'شاشات العرض' }] : []),
     ...(me.role === 'super_admin' ? [{ id: 'accounts', label: 'الحسابات' }] : []),
     { id: 'me', label: 'حسابي' },
   ];
@@ -567,6 +568,7 @@ export default function AdminApp({ basemap, me }) {
       {section === 'me' && <MyAccount me={me} />}
       {section === 'mine' && <MySurveys />}
       {section === 'entities' && <EntitiesPanel />}
+      {section === 'reports' && (me.role === 'super_admin' || me.role === 'admin') && <ReportsAdmin />}
       {section === 'screens' && (me.role === 'super_admin' || me.role === 'admin') && <ScreenPanel />}
       {section === 'projects' && (open ? (
         <ProjectEditor

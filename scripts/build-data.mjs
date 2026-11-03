@@ -755,9 +755,11 @@ function buildRubble() {
       const c0 = str(r[0]);
       if (c0.startsWith('اجمالي') || c0.startsWith('إجمالي')) continue;
       if (c0) phase = /الأولى|الاولى/.test(c0) ? 'المرحلة الأولى' : /الثانية/.test(c0) ? 'المرحلة الثانية' : /الثالثة/.test(c0) ? 'المرحلة الثالثة' : c0;
-      const gov = str(r[1]);
+      /* «ريف دير الزور» وأمثالها: المحافظة نفسها (ريف دمشق وحدها محافظة مستقلة) */
+      const raw = str(r[1]);
+      const gov = /^ريف\s+/.test(raw) && !/^ريف\s+دمشق/.test(raw) ? raw.replace(/^ريف\s+/, '') : raw;
       if (!gov || !phase) continue;
-      phases.push({ phase, gov, region: '—', planned: num(r[2]), executed: num(r[3]), notes: str(r[5]), sites: 0 });
+      phases.push({ phase, gov, region: gov === raw ? '—' : raw, planned: num(r[2]), executed: num(r[3]), notes: str(r[5]), sites: 0 });
     }
     const asOf = grid.find((r) => str(r[0]).startsWith('تاريخ التقرير'));
     if (asOf) phases.asOf = day(asOf[1]);

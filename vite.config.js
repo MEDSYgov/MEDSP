@@ -1,5 +1,7 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
+import fs from 'node:fs'
+import path from 'node:path'
 import dataHandler, { publicHandler } from './server/dataHandler.js'
 import screenHandler from './server/screenHandler.js'
 import { configScript } from './server/runtimeConfig.js'
@@ -47,6 +49,28 @@ const runtimeConfig = (env) => {
   };
 };
 
+/*
+  مستعرض التقارير (pdf.js): الخطوط القياسية وخرائط المحارف تُنسخ إلى dist/pdfjs،
+  فيعرض المستعرض أي PDF دون اتصال بمواقع خارجية.
+*/
+const pdfjsAssets = () => {
+  const src = path.resolve('node_modules/pdfjs-dist');
+  const dirs = ['cmaps', 'standard_fonts'];
+  return {
+    name: 'medsp-pdfjs-assets',
+    configureServer(server) {
+      server.middlewares.use('/pdfjs', (req, res, next) => {
+        const file = path.join(src, decodeURIComponent(req.url.split('?')[0]));
+        if (!file.startsWith(src + path.sep) || !dirs.some((d) => file.startsWith(path.join(src, d)))) return next();
+        fs.readFile(file, (err, buf) => (err ? next() : res.end(buf)));
+      });
+    },
+    writeBundle(opts) {
+      for (const d of dirs) fs.cpSync(path.join(src, d), path.join(opts.dir || 'dist', 'pdfjs', d), { recursive: true });
+    },
+  };
+};
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = { ...process.env, ...loadEnv(mode, process.cwd(), '') };
@@ -54,5 +78,5 @@ export default defineConfig(({ mode }) => {
   for (const k of ['SUPABASE_URL', 'SUPABASE_KEY', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_KEY']) {
     if (env[k] && !process.env[k]) process.env[k] = env[k];
   }
-  return { plugins: [react(), dataApi(), runtimeConfig(env)] };
+  return { plugins: [react(), dataApi(), runtimeConfig(env), pdfjsAssets()] };
 })

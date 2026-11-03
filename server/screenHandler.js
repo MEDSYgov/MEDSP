@@ -97,9 +97,23 @@ function opsStats(cfg) {
   const last = months.at(-1);
   const prev = months.at(-2);
   const L = byMonth.get(last) || { n: 0, ops: new Map(), govs: new Map() };
-  const P = byMonth.get(prev) || { n: 0, ops: new Map() };
+  let P = byMonth.get(prev) || { n: 0, ops: new Map() };
+
+  /* الشهر الأخير غير مكتمل (بيانات حتى يوم معيّن): يُقارن بالأيام نفسها من الشهر السابق،
+     لا بالشهر السابق كاملاً، وإلا ظهر انخفاض غير حقيقي */
+  const lastDay = ov.to && ov.to.slice(0, 7) === last ? Number(ov.to.slice(8, 10)) : 31;
+  const monthLen = last ? new Date(Date.UTC(Number(last.slice(0, 4)), Number(last.slice(5, 7)), 0)).getUTCDate() : 31;
+  const partial = lastDay < monthLen;
+  if (partial && prev) {
+    P = { n: 0, ops: new Map() };
+    for (const r of ov.records) {
+      if (!r[0] || r[0].slice(0, 7) !== prev || Number(r[0].slice(8, 10)) > lastDay || !opIdx.has(r[5])) continue;
+      P.n += 1;
+      P.ops.set(r[5], (P.ops.get(r[5]) || 0) + 1);
+    }
+  }
   return {
-    ov, last, prev, total, L, P, opIdx, months, byMonth,
+    ov, last, prev, total, L, P, opIdx, months, byMonth, partial, lastDay,
     govRows: [...L.govs].map(([i, n]) => ({ name: govName(govs[i]), value: n }))
       .filter((g) => !hiddenGov.has(norm(g.name))).sort((a, b) => b.value - a.value),
   };
@@ -122,6 +136,9 @@ function rubbleStats(cfg) {
   return { asOf: t.planAsOf, planned, executed, govs: [...byGov.values()].sort((a, b) => b.planned - a.planned) };
 }
 
+/* «تشرين الأول 2026» أو «تشرين الأول 2026 حتى 28 منه» إن لم يكتمل الشهر */
+const monthLabel = (o) => (o.partial ? `${monthName(o.last)} حتى ${o.lastDay} منه` : monthName(o.last));
+
 export function buildSlides(cfg) {
   const out = [];
   let ops; let rub;
@@ -135,21 +152,24 @@ export function buildSlides(cfg) {
 
     if (s.id === 'ops-total') {
       const o = getOps(); if (!o?.last) continue;
-      out.push({ ...base, month: monthName(o.last), prevMonth: monthName(o.prev), value: o.L.n, prev: o.P.n, total: o.total, since: monthName(o.months[0]) });
+      out.push({ ...base, month: monthLabel(o), prevMonth: o.partial ? `${monthName(o.prev)} (الفترة نفسها)` : monthName(o.prev),
+        value: o.L.n, prev: o.P.n, total: o.total, since: monthName(o.months[0]), partial: o.partial });
     } else if (s.id === 'ops-breakdown') {
       const o = getOps(); if (!o?.last) continue;
       const items = [...o.opIdx].map(([i, op]) => ({ name: op.name, value: o.L.ops.get(i) || 0, prev: o.P.ops.get(i) || 0 }))
         .filter((x) => x.value > 0).sort((a, b) => b.value - a.value);
-      out.push({ ...base, month: monthName(o.last), items });
+      out.push({ ...base, month: monthLabel(o), items });
     } else if (s.id === 'ops-govs') {
       const o = getOps(); if (!o?.last || !o.govRows.length) continue;
-      out.push({ ...base, month: monthName(o.last), items: o.govRows });
+      out.push({ ...base, month: monthLabel(o), items: o.govRows });
     } else if (s.id === 'ops-impact') {
       const o = getOps(); if (!o?.last) continue;
-      out.push({ ...base, month: monthName(o.last), beneficiaries: o.L.beneficiaries, injured: o.L.injured, dead: o.L.dead });
+      out.push({ ...base, month: monthLabel(o), beneficiaries: o.L.beneficiaries, injured: o.L.injured, dead: o.L.dead });
     } else if (s.id === 'ops-trend') {
       const o = getOps(); if (!o?.last) continue;
       const items = o.months.slice(-12).map((m) => ({ name: monthName(m), short: MONTHS[Number(m.slice(5, 7)) - 1], value: o.byMonth.get(m).n }));
+      /* الشهر غير المكتمل يُعلَّم، حتى لا يُقرأ عموده القصير كانخفاض */
+      if (o.partial && items.length) items[items.length - 1].short += ` (حتى ${o.lastDay})`;
       out.push({ ...base, items });
     } else if (s.id === 'rubble-progress') {
       const r = getRub(); if (!r || !r.planned) continue;
