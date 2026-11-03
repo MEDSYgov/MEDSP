@@ -174,6 +174,28 @@ export function validateNode(node, value, answers, scope, onError) {
     || checkConstraint(node, value, ctx, onError);
 }
 
+/*
+  أخطاء مجموعة متكررة: الحد الأدنى، وقيد المجموعة كلها (constraint على العقدة نفسها،
+  مثل «عدد البطاقات = عدد الآليات»)، ثم أسئلة كل صف في سياقه.
+*/
+function repeatErrors(node, answers, map, onError) {
+  const rows = answers[node.name] || [];
+  if (node.minCount && rows.length < node.minCount) map[node.name] = `أضف ${node.minCount} على الأقل`;
+  if (!map[node.name] && node.required && rows.length === 0) map[node.name] = 'أضف مدخلاً واحداً على الأقل';
+  if (!map[node.name] && node.constraint) {
+    const ok = isTruthy(evaluateExpression(node.constraint, buildContext(answers, null), true, onError));
+    if (!ok) map[node.name] = node.constraintMessage || 'القيمة غير مقبولة';
+  }
+  rows.forEach((row, i) => {
+    for (const child of node.children) {
+      if (NON_ANSWER_TYPES.has(child.type)) continue;
+      if (child.relevant && !isTruthy(evaluateExpression(child.relevant, buildContext(answers, row), true, onError))) continue;
+      const err = validateNode(child, row[child.name], answers, row, onError);
+      if (err) map[`${node.name}.${i}.${child.name}`] = err;
+    }
+  });
+}
+
 /* ---------------- المُختزِل ---------------- */
 
 function initialAnswers(nodes, seed = {}) {
@@ -317,19 +339,7 @@ export default function useSurvey(definition, options = {}) {
         const err = validateNode(item.node, answers[item.node.name], answers, null, onExprError);
         if (err) map[item.node.name] = err;
       }
-      if (item.kind === 'repeat') {
-        const rows = answers[item.node.name] || [];
-        if (item.node.minCount && rows.length < item.node.minCount) {
-          map[item.node.name] = `أضف ${item.node.minCount} على الأقل`;
-        }
-        rows.forEach((row, i) => {
-          for (const child of item.node.children) {
-            if (NON_ANSWER_TYPES.has(child.type)) continue;
-            const err = validateNode(child, row[child.name], answers, row, onExprError);
-            if (err) map[`${item.node.name}.${i}.${child.name}`] = err;
-          }
-        });
-      }
+      if (item.kind === 'repeat') repeatErrors(item.node, answers, map, onExprError);
     }
     return map;
   }, [visible, answers, onExprError]);
@@ -371,6 +381,7 @@ export default function useSurvey(definition, options = {}) {
         const err = validateNode(item.node, answers[item.node.name], answers, null, onExprError);
         if (err) map[item.node.name] = err;
       }
+      if (item.kind === 'repeat') repeatErrors(item.node, answers, map, onExprError);
     }
     return map;
   }, [visibleAll, answers, onExprError]);

@@ -680,7 +680,8 @@ function SurveyModal({ s, onClose }) {
         </header>
         <div className="rt-modal__vol"><Figure value={s.vol} className="rt-modal__fig" /> <span>م³ مرحّلة من الموقع</span></div>
         <dl className="rt-modal__grid">
-          <F k="طبيعة الموقع" v={s.nature} />
+          <F k="طبيعة الموقع" v={s.natures?.length > 1 ? s.natures.join('، ') : s.nature} />
+          {s.natureVols?.length > 1 && <F k="الكميات حسب طبيعة الموقع" v={s.natureVols.map(([n, v]) => `${n}: ${fmt(v)} م³`).join(' · ')} />}
           <F k="عنوان الموقع" v={s.addr} />
           <F k="الجهة المنفذة" v={s.co} strong />
           <F k="مدلي البيانات" v={s.by} />
@@ -692,12 +693,20 @@ function SurveyModal({ s, onClose }) {
           <F k="الجهة المورّدة للآليات" v={s.supplier} />
           <F k="آليات التحميل" v={s.loaders ? fmt(s.loaders) : null} />
           <F k="أكبر سعة للآليات" v={s.capacity ? `${fmt(s.capacity)} م³` : null} />
+          <F k="آليات التحميل وسعاتها" v={s.loadersDetail || null} />
+          <F k="فرش طرق ترابية/زراعية" v={s.roads ? `${fmt(s.roads)} طريق${s.roadVol ? ` · ${fmt(s.roadVol)} م³` : ''}${s.roadDesc ? ` — ${s.roadDesc}` : ''}` : null} />
           <F k="الرحلات إلى المكب" v={s.trips ? fmt(s.trips) : null} />
           <F k="أيام العمل × الساعات اليومية" v={s.days ? `${fmt(s.days)} يوم × ${s.dailyHours ?? '—'} ساعة` : null} />
           <F k="ساعات العمل اليومية" v={!s.days && s.dailyHours ? `${s.dailyHours} ساعة` : null} />
           <F k="ساعات العمل الفعلية" v={s.workHours ? `${fmt(s.workHours)} ساعة` : null} />
           <F k="الإنتاجية" v={s.workHours ? `${fmt(s.vol / s.workHours)} م³/ساعة` : null} strong />
           <F k="آليات النقار" v={s.breakers ? fmt(s.breakers) : null} />
+          {s.br && !s.br.used && <F k="النقّار" v={`لم يُستخدم${s.br.why ? ` — ${s.br.why}` : ''}`} />}
+          {s.br?.used && <F k="ساعات تشغيل النقّار" v={`${fmt(s.br.hours)} ساعة${s.br.hoursW && s.br.hoursT ? ` (مدولب ${fmt(s.br.hoursW)} · مجنزر ${fmt(s.br.hoursT)})` : ''}`} />}
+          {s.br?.used && <F k="ساعات الآليات الحاملة" v={s.br.hostHours ? `${fmt(s.br.hostHours)} ساعة${s.br.usage ? ` · استخدام النقّار ${s.br.usage}%` : ''}` : 'بلا عداد'} />}
+          {s.br?.used && <F k="كمية التكسير" v={`${fmt(s.br.volume)} م³${s.br.method === 'visual' ? ' (تقدير بصري)' : ''}`} />}
+          {s.br?.used && <F k="إنتاجية النقّار" v={s.br.productivity ? `${s.br.productivity} م³/ساعة` : null} strong />}
+          {s.br?.used && <F k="معاينة ميدانية" v={s.br.inspected} />}
           <F k="العمال" v={s.workers ? fmt(s.workers) : null} />
           <F k="الوقود" v={s.fuel ? `${fmt(s.fuel)} لتر` : null} />
           <F k="ملاحظات التنفيذ" v={s.notes} />
@@ -720,17 +729,28 @@ function SurveyModal({ s, onClose }) {
 }
 
 /* إجابة من استبيان المنصة ← صف بنفس شكل بيانات KoBo */
+/* الكمية حسب طبيعة الموقع (الاستمارة بعد تحديث الرقابة: طبيعة الموقع اختيار متعدد) */
+const NATURE_VOL = [['طريق رئيسي', 'rt_vol_main'], ['طريق فرعي', 'rt_vol_sub'], ['ساحة عامة', 'rt_vol_square'],
+  ['منازل مدنيين', 'rt_vol_homes'], ['منشأة - منشآت عامة', 'rt_vol_facility']];
+
 export function fromResponse(r, i) {
   const a = r.answers || {};
   const code = a.rt_gov?.governorate || '';
+  /* طبيعة الموقع: نص واحد في الإجابات القديمة، ومصفوفة في الجديدة.
+     للفلاتر والتجميع تُعتمد الطبيعة ذات الكمية الأكبر، وتُحفظ الكميات كلها للتفصيل. */
+  const natures = Array.isArray(a.rt_nature) ? a.rt_nature : (a.rt_nature ? [a.rt_nature] : []);
+  const natureVols = NATURE_VOL.filter(([n]) => natures.includes(n)).map(([n, k]) => [n, Number(a[k]) || 0]);
+  const mainNature = natureVols.length ? [...natureVols].sort((x, y) => y[1] - x[1])[0][0] : (natures[0] || '');
+  const brUsed = a.rt_br_used === 'نعم';
+  const brCount = (Number(a.rt_br_count_w) || 0) + (Number(a.rt_br_count_t) || 0);
   return {
     id: `م-${i + 1}`, rid: r.id, p: Number(a.rt_phase) || 3, live: true,
     date: a.rt_date || String(r.submittedAt || '').slice(0, 10),
-    by: a.rt_collector || '', co: r.entityName || a.rt_contractor_other || a.rt_contractor || 'غير محدد', nature: a.rt_nature || '',
+    by: a.rt_collector || '', co: r.entityName || a.rt_contractor_other || a.rt_contractor || 'غير محدد', nature: mainNature, natures, natureVols,
     addr: a.rt_address || '', gov: code, area: a.rt_gov?.names?.district || a.rt_area || '',
     town: a.rt_gov?.names?.subdistrict || a.rt_town || '', village: a.rt_gov?.names?.community || a.rt_village || '',
     lat: Number(a.rt_point?.lat) || 0, lon: Number(a.rt_point?.lng) || 0,
-    vol: Number(a.rt_volume) || 0, dump: a.rt_dump || '', dist: a.rt_distance || '',
+    vol: Number(a.rt_volume) || 0, dump: a.rt_dump || '', dist: a.rt_distance_other ? `${a.rt_distance_other} كم` : (a.rt_distance || ''),
     hours: Number(a.rt_hours) || null, fam: Number(a.rt_families) || null, photos: [],
     hasPhotos: Boolean(r.photos),
     /* بيانات التشغيل والإنتاجية (أُضيفت للاستمارة الرسمية) */
@@ -742,7 +762,21 @@ export function fromResponse(r, i) {
     days: Number(a.rt_work_days) || null,
     dailyHours: Number(a.rt_daily_hours) || null,
     workHours: (Number(a.rt_work_days) || 0) * (Number(a.rt_daily_hours) || 0) || null,
-    breakers: Number(a.rt_breakers) || null,
+    breakers: brUsed ? brCount || null : (Number(a.rt_breakers) || null),
+    loadersDetail: a.rt_loaders_detail || '',
+    /* فرش الطرق الترابية أو الزراعية بالأنقاض */
+    roads: Number(a.rt_road_count) || null, roadDesc: a.rt_road_desc || '', roadVol: Number(a.rt_road_volume) || null,
+    /* رقابة النقّار (لهذا الموقع وهذا اليوم) */
+    br: a.rt_br_used ? {
+      used: brUsed,
+      why: a.rt_br_why === 'other' ? a.rt_br_why_other : a.rt_br_why,
+      types: a.rt_br_types || [], count: brCount,
+      hours: Number(a.rt_br_hours) || 0, hoursW: Number(a.rt_br_hours_w) || 0, hoursT: Number(a.rt_br_hours_t) || 0,
+      hostHours: Number(a.rt_host_hours) || 0, usage: Number(a.rt_br_usage) || null,
+      volume: Number(a.rt_br_volume) || 0, productivity: Number(a.rt_br_productivity) || null,
+      method: a.rt_br_method || '', material: a.rt_br_material || [],
+      inspected: a.rt_br_inspected || '', units: (a.rt_br_units || []).length,
+    } : null,
     workers: Number(a.rt_workers) || null,
     fuel: Number(a.rt_fuel) || null,
     notes: a.rt_ops_notes || '',

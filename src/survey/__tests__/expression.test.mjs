@@ -7,10 +7,14 @@ import { evaluateExpression as ev, checkExpression, dependencies } from '../expr
 const ctx = {
   age: 25, status: 'married', services: ['water', 'power'],
   household: [1, 2, 3, 4], name: '', dob: '2000-05-10', a: 5, b: 10, nums: [],
+  t1: '08:00', t2: '10:30', units: [{ type: 'w', h: 2 }, { type: 't', h: 3.5 }, { type: 't', h: 1 }],
 };
 
 const cases = [
   ['${age} >= 18', true],
+  ['hours_between(${t1}, ${t2}) = 2.5', true],
+  ['hours_between(${t2}, ${t1}) < 0', true],
+  ["repeat_sum_where(${units}, 'h', 'type', 't') = 4.5", true],
   ["${age} >= 18 and ${status} = 'married'", true],
   ["${age} < 18 or ${status} = 'single'", false],
   ["selected(${services}, 'water')", true],

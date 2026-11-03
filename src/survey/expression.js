@@ -241,6 +241,17 @@ const FUNCTIONS = {
     const b = asNumber(args[1]);
     return b === 0 ? '' : Math.round((asNumber(args[0]) / b) * 1000) / 10;
   },
+  /* ساعات بين وقتين «HH:MM» (قد تكون سالبة إن كان الإيقاف قبل البدء): hours_between(${start}, ${end}) */
+  hours_between: (args) => {
+    const m = (t) => { const x = /^(\d{1,2}):(\d{2})/.exec(String(t ?? '')); return x ? Number(x[1]) * 60 + Number(x[2]) : null; };
+    const a = m(args[0]); const b = m(args[1]);
+    if (a === null || b === null) return 0;
+    return Math.round(((b - a) / 60) * 100) / 100;
+  },
+  /* مجموع حقل في صفوف مجموعة متكررة تحقق شرطاً: repeat_sum_where(${units}, 'hours', 'type', 'مجنزر') */
+  repeat_sum_where: (args) => asArray(args[0])
+    .filter((row) => String(row?.[args[2]]) === String(args[3]))
+    .reduce((a, row) => a + asNumber(row?.[args[1]]), 0),
   /* شرط ثلاثي */
   if: (args) => (truthy(args[0]) ? args[1] : args[2]),
   /* تطابق نصي جزئي */
