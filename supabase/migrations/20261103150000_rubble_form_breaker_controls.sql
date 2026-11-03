@@ -1,0 +1,104 @@
+-- ===== تطوير الاستمارة الرسمية لأعمال الأنقاض: الرقابة على الكميات وآليات النقّار =====
+-- بطلب إدارة تقييم الأضرار والتعافي — قسم التعافي (وثيقة «المتطلبات الفنية لتطوير ملحق الرقابة على أعمال الأنقاض»).
+-- إضافي ومتوافق مع الكود القديم: لا يُحذف أي سؤال قديم من الإجابات المحفوظة، والتعديل يمرّ مرة واحدة (rt_br_used علامته).
+--  1) طبيعة الموقع: اختيار متعدد.
+--  2) الكميات والترحيل: كلها إلزامية + كمية لكل طبيعة موقع ومؤشر أحمر عند عدم التطابق
+--     + وجهة «طريق ترابي أو زراعي مقترح» وأسئلتها + حقل المسافة عند «أخرى».
+--  3) التشغيل والإنتاجية: كلها إلزامية؛ «أكبر سعة» ← «عدد آليات التحميل وسعة كل منها»؛ حذف سؤالي النقّار والوقود.
+--  4) صفحة جديدة «آليات النقّار ورقابتها» قبل صفحة الصور.
+--  5) التغذية إلى إدارة الأنقاض لا تحمل أي صورة (ولا صور العدادات داخل بطاقات الآليات).
+
+create or replace function public.rt_upgrade_form(p jsonb)
+returns jsonb language plpgsql as $f$
+declare
+  page jsonb; c jsonb; kids jsonb; out_pages jsonb := '[]'::jsonb; other_val text; ch jsonb;
+  vol_extra constant jsonb := $j1$[{"required":true,"name":"rt_vol_main","type":"decimal","min":0,"label":"كمية الأنقاض التي تم ترحيلها من الطرقات الرئيسية (م³)","relevant":"selected(${rt_nature}, 'طريق رئيسي')"},{"required":true,"name":"rt_vol_sub","type":"decimal","min":0,"label":"كمية الأنقاض التي تم ترحيلها من الطرقات الفرعية (م³)","relevant":"selected(${rt_nature}, 'طريق فرعي')"},{"required":true,"name":"rt_vol_square","type":"decimal","min":0,"label":"كمية الأنقاض التي تم ترحيلها من الساحات العامة (م³)","relevant":"selected(${rt_nature}, 'ساحة عامة')"},{"required":true,"name":"rt_vol_homes","type":"decimal","min":0,"label":"كمية الأنقاض التي تم ترحيلها من منازل المدنيين (م³)","relevant":"selected(${rt_nature}, 'منازل مدنيين')"},{"required":true,"name":"rt_vol_facility","type":"decimal","min":0,"label":"كمية الأنقاض التي تم ترحيلها من المنشأة / المنشآت العامة (م³)","relevant":"selected(${rt_nature}, 'منشأة - منشآت عامة')"},{"name":"rt_vol_parts","type":"calculate","showResult":true,"label":"مجموع الكميات حسب طبيعة الموقع","unit":"م³","calculation":"${rt_vol_main} + ${rt_vol_sub} + ${rt_vol_square} + ${rt_vol_homes} + ${rt_vol_facility}"},{"name":"rt_vol_mismatch","type":"note","appearance":"danger","label":"⛔ مجموع الكميات حسب طبيعة الموقع لا يساوي الكمية الإجمالية المرحّلة. راجع الأرقام.","relevant":"answered(${rt_volume}) and ${rt_vol_parts} > 0 and ${rt_vol_parts} != ${rt_volume}"}]$j1$::jsonb;
+  road_extra constant jsonb := $j2$[{"required":true,"name":"rt_road_count","type":"integer","min":1,"label":"عدد الطرق التي تم فرشها","relevant":"${rt_dump} = 'طريق ترابي أو زراعي مقترح'"},{"required":true,"name":"rt_road_desc","type":"textarea","label":"مكان الطريق وطوله وعرضه وسماكة الفرش","relevant":"${rt_dump} = 'طريق ترابي أو زراعي مقترح'","hint":"يرجى ذكر اسم المكان مع طول الطريق وعرضه وسماكته بالمتر. مثال: طريق قرية كذا — طول 400 م، عرض 6 م، سماكة 0.3 م"},{"required":true,"name":"rt_road_volume","type":"decimal","min":0,"label":"كمية الأنقاض التقديرية المستخدمة للفرش (م³)","relevant":"${rt_dump} = 'طريق ترابي أو زراعي مقترح'","constraint":"${rt_road_volume} <= ${rt_volume}","constraintMessage":"⛔ كمية الفرش أكبر من إجمالي الأنقاض المرحّلة"}]$j2$::jsonb;
+  loaders constant jsonb := $j3${"required":true,"name":"rt_loaders_detail","type":"textarea","label":"ما عدد آليات التحميل المستخدمة في الموقع لهذا اليوم وسعة كل آلية؟","hint":"مثال: قلاب عدد 3 بسعة 15 م³ للقلاب الواحد"}$j3$::jsonb;
+  breaker constant jsonb := $j4${"name":"breaker_sec","title":"آليات النقّار ورقابتها","children":[{"name":"br_intro","type":"note","label":"تخص هذه الصفحة هذا الموقع وهذا اليوم فقط، لا المشروع ككل."},{"required":true,"name":"rt_br_used","type":"select_one","label":"هل تم استخدام آلية النقّار في أعمال إزالة الأنقاض في هذا الموقع خلال يوم العمل؟","choices":[{"label":"نعم","value":"نعم"},{"label":"لا","value":"لا"}],"appearance":"columns"},{"required":true,"name":"rt_br_why","type":"select_one","label":"ما سبب عدم استخدام النقّار؟","relevant":"${rt_br_used} = 'لا'","choices":[{"label":"عدم وجود كتل كبيرة تستدعي التكسير","value":"no_blocks"},{"label":"الأنقاض قابلة للتحميل مباشرة","value":"direct"},{"label":"طبيعة الموقع لا تستدعي استخدام النقّار","value":"site"},{"label":"سبب آخر","value":"other"}]},{"required":true,"name":"rt_br_why_other","type":"textarea","label":"وضّح السبب","relevant":"${rt_br_used} = 'لا' and ${rt_br_why} = 'other'"},{"required":true,"name":"rt_br_types","type":"select_multiple","label":"ما نوع النقّار المستخدم؟","relevant":"${rt_br_used} = 'نعم'","choices":[{"label":"نقّار مدولب","value":"مدولب"},{"label":"نقّار مجنزر","value":"مجنزر"}],"appearance":"columns"},{"required":true,"name":"rt_br_models_w","type":"select_multiple","label":"طراز الآلية الحاملة للنقّار المدولب","relevant":"${rt_br_used} = 'نعم' and selected(${rt_br_types}, 'مدولب')","choices":[{"label":"Volvo L90","value":"Volvo L90"},{"label":"Volvo L120","value":"Volvo L120"},{"label":"Volvo 210","value":"Volvo 210"},{"label":"آلية أخرى معادلة للمواصفات التعاقدية","value":"other"}]},{"required":true,"name":"rt_br_models_w_other","type":"text","label":"الطراز الفعلي (مدولب)","relevant":"${rt_br_used} = 'نعم' and selected(${rt_br_models_w}, 'other')"},{"required":true,"name":"rt_br_models_t","type":"select_multiple","label":"طراز الآلية الحاملة للنقّار المجنزر","relevant":"${rt_br_used} = 'نعم' and selected(${rt_br_types}, 'مجنزر')","choices":[{"label":"Volvo L90","value":"Volvo L90"},{"label":"Volvo L120","value":"Volvo L120"},{"label":"Volvo 210","value":"Volvo 210"},{"label":"آلية أخرى معادلة للمواصفات التعاقدية","value":"other"}]},{"required":true,"name":"rt_br_models_t_other","type":"text","label":"الطراز الفعلي (مجنزر)","relevant":"${rt_br_used} = 'نعم' and selected(${rt_br_models_t}, 'other')"},{"required":true,"name":"rt_br_count_w","type":"integer","min":1,"label":"عدد آليات النقّار المدولب في الموقع","relevant":"${rt_br_used} = 'نعم' and selected(${rt_br_types}, 'مدولب')"},{"required":true,"name":"rt_br_count_t","type":"integer","min":1,"label":"عدد آليات النقّار المجنزر في الموقع","relevant":"${rt_br_used} = 'نعم' and selected(${rt_br_types}, 'مجنزر')"},{"name":"rt_br_count","type":"calculate","showResult":true,"label":"إجمالي آليات النقّار","unit":"آلية","calculation":"if(${rt_br_used} = 'نعم', ${rt_br_count_w} + ${rt_br_count_t}, 0)"},{"name":"rt_br_units","type":"repeat","label":"التحقق من ساعات التشغيل — بطاقة لكل آلية","itemLabel":"آلية نقّار","hint":"أضف بطاقة لكل آلية نقّار في الموقع (عدد البطاقات = إجمالي الآليات أعلاه). المدولب والمجنزر كلٌّ ببطاقته.","relevant":"${rt_br_used} = 'نعم'","required":true,"constraint":"count(${rt_br_units}) = ${rt_br_count} and repeat_count(${rt_br_units}, 'u_type', 'مدولب') = ${rt_br_count_w} + 0 and repeat_count(${rt_br_units}, 'u_type', 'مجنزر') = ${rt_br_count_t} + 0","constraintMessage":"⛔ عدد البطاقات أو أنواعها لا يطابق عدد آليات المدولب والمجنزر المذكور أعلاه","children":[{"required":true,"name":"u_type","type":"select_one","label":"نوع هذه الآلية","choices":[{"label":"نقّار مدولب","value":"مدولب"},{"label":"نقّار مجنزر","value":"مجنزر"}],"appearance":"columns"},{"required":true,"name":"u_model","type":"select_one","label":"طراز الآلية الحاملة","choices":[{"label":"Volvo L90","value":"Volvo L90"},{"label":"Volvo L120","value":"Volvo L120"},{"label":"Volvo 210","value":"Volvo 210"},{"label":"آلية أخرى معادلة للمواصفات التعاقدية","value":"other"}]},{"required":true,"name":"u_model_other","type":"text","label":"الطراز الفعلي للآلية","relevant":"${u_model} = 'other'"},{"required":true,"name":"u_photo","type":"image","label":"صورة واضحة للآلية الحاملة مع النقّار","hint":"للتحقق من المطابقة للمواصفات التعاقدية"},{"required":true,"name":"u_br_meter","type":"select_one","label":"هل يوجد عداد مستقل لساعات تشغيل النقّار نفسه؟","choices":[{"label":"نعم","value":"نعم"},{"label":"لا","value":"لا"}],"appearance":"columns"},{"required":true,"name":"u_br_start","type":"decimal","min":0,"label":"قراءة عداد النقّار عند بداية العمل","relevant":"${u_br_meter} = 'نعم'"},{"required":true,"name":"u_br_start_photo","type":"image","label":"صورة العداد عند بداية العمل","relevant":"${u_br_meter} = 'نعم'"},{"required":true,"name":"u_br_end","type":"decimal","min":0,"label":"قراءة عداد النقّار عند نهاية العمل","relevant":"${u_br_meter} = 'نعم'","constraint":"${u_br_end} >= ${u_br_start}","constraintMessage":"⛔ القراءة النهائية أقل من الابتدائية — راجع قراءتي العداد"},{"required":true,"name":"u_br_end_photo","type":"image","label":"صورة العداد عند نهاية العمل","relevant":"${u_br_meter} = 'نعم'"},{"name":"u_br_p_note","type":"note","label":"لا يوجد عداد للنقّار: سجّل فترات التشغيل الفعلية خلال اليوم (وقت البدء ووقت الإيقاف). لا يُقبل عدد ساعات تقديري.","relevant":"${u_br_meter} = 'لا'"},{"required":true,"name":"u_p1_start","type":"time","label":"الفترة 1 — وقت بدء التشغيل","relevant":"${u_br_meter} = 'لا'"},{"required":true,"name":"u_p1_end","type":"time","label":"الفترة 1 — وقت إيقاف التشغيل","relevant":"${u_br_meter} = 'لا'","constraint":"hours_between(${u_p1_start}, ${u_p1_end}) > 0","constraintMessage":"⛔ وقت الإيقاف يجب أن يكون بعد وقت البدء"},{"name":"u_p2_start","type":"time","label":"الفترة 2 — وقت بدء التشغيل (إن وُجدت)","relevant":"${u_br_meter} = 'لا'","constraint":"hours_between(${u_p1_end}, ${u_p2_start}) >= 0","constraintMessage":"⛔ الفترة 2 تتداخل مع الفترة 1"},{"name":"u_p2_end","type":"time","label":"الفترة 2 — وقت إيقاف التشغيل","relevant":"${u_br_meter} = 'لا' and answered(${u_p2_start})","required":"answered(${u_p2_start})","constraint":"hours_between(${u_p2_start}, ${u_p2_end}) > 0","constraintMessage":"⛔ وقت الإيقاف يجب أن يكون بعد وقت البدء"},{"name":"u_p3_start","type":"time","label":"الفترة 3 — وقت بدء التشغيل (إن وُجدت)","relevant":"${u_br_meter} = 'لا' and answered(${u_p2_end})","constraint":"hours_between(${u_p2_end}, ${u_p3_start}) >= 0","constraintMessage":"⛔ الفترة 3 تتداخل مع الفترة 2"},{"name":"u_p3_end","type":"time","label":"الفترة 3 — وقت إيقاف التشغيل","relevant":"${u_br_meter} = 'لا' and answered(${u_p3_start})","required":"answered(${u_p3_start})","constraint":"hours_between(${u_p3_start}, ${u_p3_end}) > 0","constraintMessage":"⛔ وقت الإيقاف يجب أن يكون بعد وقت البدء"},{"name":"u_br_hours","type":"calculate","showResult":true,"label":"ساعات تشغيل النقّار (محسوبة)","unit":"ساعة","calculation":"if(${u_br_meter} = 'نعم', ${u_br_end} - ${u_br_start}, hours_between(${u_p1_start}, ${u_p1_end}) + hours_between(${u_p2_start}, ${u_p2_end}) + hours_between(${u_p3_start}, ${u_p3_end}))"},{"required":true,"name":"u_host_meter","type":"select_one","label":"هل الآلية الحاملة للنقّار مزودة بعداد مستقل لساعات تشغيل المحرك؟","choices":[{"label":"نعم","value":"نعم"},{"label":"لا","value":"لا"}],"appearance":"columns"},{"required":true,"name":"u_host_start","type":"decimal","min":0,"label":"قراءة عداد الآلية الحاملة عند بداية العمل","relevant":"${u_host_meter} = 'نعم'"},{"required":true,"name":"u_host_start_photo","type":"image","label":"صورة عداد الآلية الحاملة عند البداية","relevant":"${u_host_meter} = 'نعم'"},{"required":true,"name":"u_host_end","type":"decimal","min":0,"label":"قراءة عداد الآلية الحاملة عند نهاية العمل","relevant":"${u_host_meter} = 'نعم'","constraint":"${u_host_end} >= ${u_host_start} and ${u_host_end} - ${u_host_start} >= ${u_br_hours}","constraintMessage":"⛔ تناقض في العدادات: القراءة النهائية أقل من الابتدائية، أو ساعات النقّار تتجاوز ساعات تشغيل الآلية الحاملة"},{"required":true,"name":"u_host_end_photo","type":"image","label":"صورة عداد الآلية الحاملة عند النهاية","relevant":"${u_host_meter} = 'نعم'"},{"name":"u_host_hours","type":"calculate","showResult":true,"label":"ساعات تشغيل الآلية الحاملة (محسوبة)","unit":"ساعة","calculation":"if(${u_host_meter} = 'نعم', ${u_host_end} - ${u_host_start}, '')"},{"name":"u_host_none","type":"note","label":"لا يوجد عداد ساعات تشغيل في الآلية الحاملة، ويتم الاكتفاء بتوثيق ساعات تشغيل النقّار من خلال تسجيل أوقات بدء وإيقاف التشغيل الفعلية خلال اليوم.","relevant":"${u_host_meter} = 'لا'"}]},{"name":"rt_br_hours_w","type":"calculate","showResult":true,"label":"ساعات تشغيل النقّار المدولب","unit":"ساعة","relevant":"${rt_br_used} = 'نعم' and selected(${rt_br_types}, 'مدولب')","calculation":"repeat_sum_where(${rt_br_units}, 'u_br_hours', 'u_type', 'مدولب')"},{"name":"rt_br_hours_t","type":"calculate","showResult":true,"label":"ساعات تشغيل النقّار المجنزر","unit":"ساعة","relevant":"${rt_br_used} = 'نعم' and selected(${rt_br_types}, 'مجنزر')","calculation":"repeat_sum_where(${rt_br_units}, 'u_br_hours', 'u_type', 'مجنزر')"},{"name":"rt_br_hours","type":"calculate","showResult":true,"label":"إجمالي ساعات تشغيل النقّار","unit":"ساعة","relevant":"${rt_br_used} = 'نعم'","calculation":"repeat_sum(${rt_br_units}, 'u_br_hours')"},{"name":"rt_host_hours","type":"calculate","showResult":true,"label":"إجمالي ساعات تشغيل الآليات الحاملة (ذات العداد)","unit":"ساعة","relevant":"${rt_br_used} = 'نعم'","calculation":"repeat_sum(${rt_br_units}, 'u_host_hours')"},{"name":"rt_br_usage","type":"calculate","showResult":true,"label":"نسبة استخدام النقّار (ساعات النقّار ÷ ساعات الآلية)","unit":"%","relevant":"${rt_br_used} = 'نعم' and ${rt_host_hours} > 0","calculation":"percent(repeat_sum_where(${rt_br_units}, 'u_br_hours', 'u_host_meter', 'نعم'), ${rt_host_hours})"},{"required":true,"name":"rt_br_volume","type":"decimal","min":0,"label":"حجم الأنقاض التي تم تكسيرها فعلياً بواسطة النقّار (م³)","relevant":"${rt_br_used} = 'نعم'","hint":"الكمية التي خضعت فعلياً للتكسير فقط، لا كامل أنقاض الموقع ولا الكميات المنقولة دون تكسير.","constraint":"${rt_br_volume} <= ${rt_volume}","constraintMessage":"⛔ حجم التكسير أكبر من إجمالي الأنقاض المرحّلة من الموقع"},{"required":true,"name":"rt_br_method","type":"select_one","label":"كيف تم تقدير حجم الأنقاض التي تم تكسيرها؟","relevant":"${rt_br_used} = 'نعم'","choices":[{"label":"قياس أبعاد الكتل وتقدير أحجامها","value":"blocks"},{"label":"قياس حجم كومة الأنقاض","value":"pile"},{"label":"تقدير بصري من المراقب","value":"visual"}]},{"name":"rt_br_visual_warn","type":"note","appearance":"warning","label":"⚠ الكمية مقدّرة بصرياً وتحتاج إلى تحقق إضافي.","relevant":"${rt_br_used} = 'نعم' and ${rt_br_method} = 'visual'"},{"required":true,"name":"rt_br_method_note","type":"textarea","label":"وضّح طريقة التقدير البصري","relevant":"${rt_br_used} = 'نعم' and ${rt_br_method} = 'visual'"},{"required":true,"name":"rt_br_material","type":"select_multiple","label":"ما طبيعة الأنقاض التي تم تكسيرها؟","relevant":"${rt_br_used} = 'نعم'","choices":[{"label":"خرسانة مسلحة","value":"خرسانة مسلحة"},{"label":"خرسانة عادية","value":"خرسانة عادية"},{"label":"أحجار وصخور","value":"أحجار وصخور"},{"label":"مواد أخرى","value":"مواد أخرى"}]},{"name":"rt_br_productivity","type":"calculate","showResult":true,"label":"إنتاجية النقّار (كمية التكسير ÷ ساعات التشغيل)","unit":"م³/ساعة","relevant":"${rt_br_used} = 'نعم' and ${rt_br_hours} > 0","calculation":"round(${rt_br_volume} div ${rt_br_hours} * 10) div 10"},{"name":"rt_br_low_t","type":"note","appearance":"warning","label":"⚠ إنتاجية النقّار أقل من الحد التعاقدي للمجنزر (15 م³/ساعة). تُحال الحالة للمراجعة الفنية ولا تُرفض تلقائياً.","relevant":"${rt_br_used} = 'نعم' and selected(${rt_br_types}, 'مجنزر') and ${rt_br_hours} > 0 and answered(${rt_br_volume}) and ${rt_br_productivity} < 15"},{"required":true,"name":"rt_br_photo_before","type":"image","label":"صورة قبل التكسير","relevant":"${rt_br_used} = 'نعم'","hint":"من الموقع نفسه، ويُفضّل التقاطها مباشرة من الاستمارة."},{"required":true,"name":"rt_br_photo_during","type":"image","label":"صورة أثناء التكسير","relevant":"${rt_br_used} = 'نعم'"},{"required":true,"name":"rt_br_photo_after","type":"image","label":"صورة بعد التكسير","relevant":"${rt_br_used} = 'نعم'"},{"required":true,"name":"rt_br_inspected","type":"select_one","label":"هل تمت معاينة أعمال النقّار والتحقق من ساعات التشغيل ميدانياً؟","relevant":"${rt_br_used} = 'نعم'","choices":[{"label":"نعم","value":"نعم"},{"label":"لا","value":"لا"}],"appearance":"columns"},{"required":true,"name":"rt_br_inspect_why","type":"textarea","label":"وضّح سبب عدم المعاينة","relevant":"${rt_br_used} = 'نعم' and ${rt_br_inspected} = 'لا'"}]}$j4$::jsonb;
+  road_choice constant jsonb := '{"label":"طريق ترابي أو زراعي مقترح","value":"طريق ترابي أو زراعي مقترح"}'::jsonb;
+  is_work boolean; is_ops boolean;
+begin
+  if p::text like '%"rt_br_used"%' then return p; end if;
+  for page in select value from jsonb_array_elements(p) loop
+    is_work := page->'children' @> '[{"name":"rt_volume"}]';
+    is_ops := page->'children' @> '[{"name":"rt_work_days"}]';
+    kids := '[]'::jsonb;
+    for c in select value from jsonb_array_elements(page->'children') loop
+      if c->>'name' = 'rt_nature' then
+        kids := kids || jsonb_build_array(c || '{"type":"select_multiple","label":"طبيعة الموقع (يمكن اختيار أكثر من خيار)","required":true}'::jsonb);
+      elsif c->>'name' = 'rt_families' then
+        kids := kids || jsonb_build_array(c || jsonb_build_object('relevant', 'selected(${rt_nature}, ''منازل مدنيين'')'));
+      elsif is_work then
+        if c->>'type' not in ('note', 'calculate') then c := c || '{"required":true}'::jsonb; end if;
+        if c->>'name' = 'rt_dump' and not (c->'choices' @> jsonb_build_array(road_choice)) then
+          c := jsonb_set(c, '{choices}', (c->'choices') || jsonb_build_array(road_choice));
+        end if;
+        if c->>'name' = 'rt_distance' then
+          select ch2->>'value' into other_val from jsonb_array_elements(c->'choices') ch2 where ch2->>'label' like '%أخرى%' limit 1;
+          if other_val is null then
+            other_val := 'other';
+            c := jsonb_set(c, '{choices}', (c->'choices') || '[{"label":"أخرى","value":"other"}]'::jsonb);
+          end if;
+        end if;
+        kids := kids || jsonb_build_array(c);
+        if c->>'name' = 'rt_volume' then kids := kids || vol_extra; end if;
+        if c->>'name' = 'rt_dump' then kids := kids || road_extra; end if;
+        if c->>'name' = 'rt_distance' then
+          kids := kids || jsonb_build_array(jsonb_build_object('name', 'rt_distance_other', 'type', 'decimal', 'min', 0, 'required', true,
+            'label', 'المسافة الفعلية إلى مكب الأنقاض (كم)', 'relevant', format('${rt_distance} = %L', other_val)));
+        end if;
+      elsif is_ops then
+        if c->>'name' in ('rt_breakers', 'rt_fuel') then continue; end if;
+        if c->>'name' = 'rt_max_capacity' then kids := kids || jsonb_build_array(loaders); continue; end if;
+        if c->>'type' not in ('note', 'calculate') then c := c || '{"required":true}'::jsonb; end if;
+        kids := kids || jsonb_build_array(c);
+      else
+        kids := kids || jsonb_build_array(c);
+      end if;
+    end loop;
+    out_pages := out_pages || jsonb_build_array(jsonb_set(page, '{children}', kids));
+    if is_ops then out_pages := out_pages || jsonb_build_array(breaker); end if;
+  end loop;
+  return out_pages;
+end; $f$;
+
+update public.surveys set pages = public.rt_upgrade_form(pages)
+where pages::text like '%"rt_volume"%' and pages::text like '%"rt_work_days"%';
+
+-- خيارات الجهات تبقى من سجل الجهات
+select public.sync_contractor_choices();
+
+-- التغذية: تُحذف كل صورة (data URL) من الإجابة، بما فيها صور العدادات داخل بطاقات الآليات
+create or replace function public.strip_media(a jsonb)
+returns jsonb language plpgsql immutable as $f$
+declare out jsonb := '{}'::jsonb; k text; v jsonb;
+begin
+  if a is null or jsonb_typeof(a) <> 'object' then return a; end if;
+  for k, v in select key, value from jsonb_each(a) loop
+    if jsonb_typeof(v) = 'object' and (v ? 'dataUrl') then continue; end if;
+    if jsonb_typeof(v) = 'string' and left(v #>> '{}', 5) = 'data:' then continue; end if;
+    if jsonb_typeof(v) = 'array' then
+      v := (select coalesce(jsonb_agg(case when jsonb_typeof(e) = 'object' then public.strip_media(e) else e end), '[]'::jsonb)
+            from jsonb_array_elements(v) e);
+    end if;
+    out := out || jsonb_build_object(k, v);
+  end loop;
+  return out;
+end; $f$;
+
+create or replace function public.rubble_transfer_feed()
+returns jsonb language sql stable security definer set search_path to '' as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', r.id, 'submittedAt', r.submitted_at,
+    'answers', public.strip_media(r.answers),
+    'entityName', coalesce(e.name, nullif(r.answers->>'rt_contractor_other', ''), r.answers->>'rt_contractor'),
+    'photos', (r.answers ? 'rt_photo_before') or (r.answers ? 'rt_photo_during') or (r.answers ? 'rt_photo_after')
+  ) order by r.submitted_at), '[]'::jsonb)
+  from public.responses r join public.surveys s on s.id = r.survey_id
+  left join public.rubble_entities e on e.id::text = r.answers->>'rt_contractor'
+  where (s.report->>'feed' = 'rubble-transfer' or s.pages::text like '%"rt_volume"%')
+    and r.status = 'approved'
+    and (select auth.uid()) is not null
+    and public.gov_allowed(r.answers->'rt_gov'->>'governorate');
+$$;

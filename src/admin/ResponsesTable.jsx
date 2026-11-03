@@ -180,7 +180,13 @@ function ReviewDrawer({
                             {value.map((row, j) => (
                               <span className="ans__row" key={j}>
                                 <b>{node.itemLabel || 'مدخل'} {j + 1}</b>
-                                {(node.children || []).map((c) => {
+                                {(node.children || []).filter((c) => c.type !== 'note').map((c) => {
+                                  /* صور العدادات والآليات داخل البطاقة تظهر للمراجع ليتحقق منها */
+                                  if (c.type === 'image') {
+                                    return row[c.name]?.dataUrl
+                                      ? <span key={c.name}>{c.label}: <img className="ans__img" src={row[c.name].dataUrl} alt={c.label} /></span>
+                                      : null;
+                                  }
                                   const v = display(row[c.name], c, areas);
                                   return v ? <span key={c.name}>{c.label}: {v}</span> : null;
                                 })}
