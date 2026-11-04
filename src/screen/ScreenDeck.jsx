@@ -55,7 +55,7 @@ function Bars({ items, run, max = 8, unit }) {
           <span className="sx-bars__track">
             <span className="sx-bars__fill" style={{ '--w': `${(x.value / top) * 100}%` }} />
           </span>
-          <span className="sx-bars__val"><Count value={x.value} run={run} />{unit && <small> {unit}</small>}</span>
+          <span className="sx-bars__val"><Count value={x.value} run={run} />{unit && <small className="sx-bars__unit">{unit}</small>}</span>
         </li>
       ))}
     </ol>
@@ -78,7 +78,7 @@ function Slide({ s, run }) {
   if (s.id === 'ops-total') {
     return (
       <div className="sx-hero">
-        <p className="sx-kicker">عمليات الدفاع المدني · {s.month}</p>
+        <p className="sx-kicker">عمليات مديريات وزارة الطوارئ وإدارة الكوارث · {s.month}</p>
         <div className="sx-giant"><Count value={s.value} run={run} /></div>
         <p className="sx-sub">عملية نُفّذت خلال الشهر</p>
         <Delta now={s.value} prev={s.prev} label={`مقارنة بـ${s.prevMonth}`} />

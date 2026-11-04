@@ -60,10 +60,10 @@ html.sx-root body { cursor: none; }
 
 .sx-kicker { margin: 0; font-size: 1.5cqw; color: var(--sx-gold); letter-spacing: 0.01em; }
 .sx-title { margin: 0.8cqh 0 0; font-size: 3.1cqw; font-weight: 700; line-height: 1.15; }
-.sx-sub { margin: 0.6cqh 0 0; font-size: 1.6cqw; color: var(--sx-soft); }
+.sx-sub { margin: 2cqh 0 0; font-size: 1.6cqw; color: var(--sx-soft); }
 .sx-num { font-feature-settings: 'tnum' 1, 'lnum' 1; unicode-bidi: isolate; }
-.sx-giant { font-size: 15cqw; font-weight: 800; line-height: 0.95; letter-spacing: -0.03em; margin-top: 1cqh; }
-.sx-mid { font-size: 7cqw; font-weight: 800; line-height: 1; letter-spacing: -0.02em; margin-top: 2.2cqh; }
+.sx-giant { font-size: 15cqw; font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; margin-top: 3.5cqh; }
+.sx-mid { font-size: 7cqw; font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; margin-top: 3cqh; }
 .sx-unit, .sx-pct { font-size: 0.42em; font-weight: 500; color: var(--sx-gold); letter-spacing: 0; }
 
 /* الواجهة الرئيسية: رقم ضخم في الوسط */
@@ -90,7 +90,7 @@ html.sx-root body { cursor: none; }
 .sx-bars:not(.sx-bars--pair) li:first-child .sx-bars__fill { background: linear-gradient(270deg, #e3d9b8, var(--sx-gold)); }
 @keyframes sx-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 .sx-bars__val { font-size: 1.9cqw; font-weight: 700; text-align: start; white-space: nowrap; }
-.sx-bars__val small { font-size: 0.62em; font-weight: 400; color: var(--sx-soft); }
+.sx-bars__val small { margin-inline-start: 0.4em; font-size: 0.62em; font-weight: 400; color: var(--sx-soft); }
 
 /* أعمدة مزدوجة: المخطط والمنفّذ */
 .sx-bars--pair li { grid-template-columns: 12cqw 1fr 18cqw; }
