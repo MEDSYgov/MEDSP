@@ -1,0 +1,19 @@
+{
+  "name": "منصة مديرية التخطيط والإحصاء — وزارة الطوارئ وإدارة الكوارث",
+  "short_name": "منصة التخطيط",
+  "description": "منصة مديرية التخطيط والإحصاء في وزارة الطوارئ وإدارة الكوارث",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#02443a",
+  "theme_color": "#02443a",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

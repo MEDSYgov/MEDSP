@@ -52,10 +52,13 @@ function Computed({ node, value }) {
 
 /* ---------------- ملاحظة ---------------- */
 
+/* appearance: danger (تنبيه أحمر) · warning (تنبيه أصفر) · ok — للتنبيهات الرقابية الشرطية */
 function Note({ node }) {
+  const tone = ['danger', 'warning', 'ok'].includes(node.appearance) ? ` q-note--${node.appearance}` : '';
   return (
-    <div className="q-note">
+    <div className={`q-note${tone}`} role={tone ? 'alert' : undefined}>
       <p>{node.label}</p>
+      {node.hint && <p className="q-note__hint">{node.hint}</p>}
     </div>
   );
 }

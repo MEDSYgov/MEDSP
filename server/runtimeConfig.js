@@ -24,7 +24,8 @@ export function publicConfig(env = process.env) {
   if (isSecretKey(key)) {
     throw new Error('SUPABASE_KEY في .env مفتاح سرّي (service_role). ضع المفتاح العلني (anon / publishable) فقط.');
   }
-  return { SUPABASE_URL: url, SUPABASE_KEY: key };
+  /* المفتاح العلني لإشعارات الدفع (VAPID) — العلني فقط، الخاص يبقى في الخادم */
+  return { SUPABASE_URL: url, SUPABASE_KEY: key, VAPID_PUBLIC_KEY: env.VAPID_PUBLIC_KEY || '' };
 }
 
 export function configScript(env = process.env) {

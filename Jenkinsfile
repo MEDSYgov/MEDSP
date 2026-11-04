@@ -68,30 +68,59 @@ pipeline {
                         '''
                     }
                 }
-                stage('Checkout') {
-                    options { timeout(time: 60, unit: 'MINUTES') }
-                    steps {
-                        script { env.LAST_PHASE = 'Checkout' }
-                        deleteDir()
-                        checkout scm
-                        script {
-                            env.GIT_COMMIT = sh(returnStdout: true,
-                                script: 'git rev-parse --verify HEAD').trim()
-                            if (!(env.GIT_COMMIT ==~ /[0-9a-f]{40,64}/)) {
-                                error('Checkout did not produce a valid commit identifier.')
-                            }
-                            env.COMMIT_AUTHOR = sh(returnStdout: true,
-                                script: 'git -c log.showSignature=false show -s --format=%an HEAD').trim()
-                            env.COMMIT_AUTHOR_EMAIL = sh(returnStdout: true,
-                                script: 'git -c log.showSignature=false show -s --format=%ae HEAD').trim()
-                            env.COMMIT_SUBJECT = sh(returnStdout: true,
-                                script: 'git -c log.showSignature=false show -s --format=%s HEAD').trim()
-                            env.INFRASH_RUN_ID = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}-${env.GIT_COMMIT.take(12)}"
-                            currentBuild.displayName = "#${env.BUILD_NUMBER} | ${env.BRANCH_NAME.toUpperCase()} | RUNNING"
-                            currentBuild.description = "Commit: ${env.GIT_COMMIT.take(8)} | ${env.NODE_NAME}"
+            stage('Checkout') {
+                options { timeout(time: 60, unit: 'MINUTES') }
+                steps {
+                    script { env.LAST_PHASE = 'Checkout' }
+
+                    deleteDir()
+
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: scm.branches,
+                        userRemoteConfigs: scm.userRemoteConfigs,
+                        doGenerateSubmoduleConfigurations: false,
+                        extensions: [
+                            [
+                                $class: 'CloneOption',
+                                shallow: true,
+                                depth: 1,
+                                noTags: true,
+                                honorRefspec: true,
+                                timeout: 30
+                            ],
+                            [
+                                $class: 'CheckoutOption',
+                                timeout: 30
+                            ]
+                        ]
+                    ])
+
+                    script {
+                        env.GIT_COMMIT = sh(returnStdout: true,
+                            script: 'git rev-parse --verify HEAD').trim()
+
+                        if (!(env.GIT_COMMIT ==~ /[0-9a-f]{40,64}/)) {
+                            error('Checkout did not produce a valid commit identifier.')
                         }
+
+                        env.COMMIT_AUTHOR = sh(returnStdout: true,
+                            script: 'git -c log.showSignature=false show -s --format=%an HEAD').trim()
+
+                        env.COMMIT_AUTHOR_EMAIL = sh(returnStdout: true,
+                            script: 'git -c log.showSignature=false show -s --format=%ae HEAD').trim()
+
+                        env.COMMIT_SUBJECT = sh(returnStdout: true,
+                            script: 'git -c log.showSignature=false show -s --format=%s HEAD').trim()
+
+                        env.INFRASH_RUN_ID = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}-${env.GIT_COMMIT.take(12)}"
+
+                        currentBuild.displayName = "#${env.BUILD_NUMBER} | ${env.BRANCH_NAME.toUpperCase()} | RUNNING"
+
+                        currentBuild.description = "Commit: ${env.GIT_COMMIT.take(8)} | ${env.NODE_NAME}"
                     }
                 }
+            }
                 stage('Build') {
                     options { timeout(time: 60, unit: 'MINUTES') }
                     steps {

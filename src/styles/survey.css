@@ -591,6 +591,30 @@
   border-inline-start-color: var(--antique-sand);
 }
 
+/* تنبيهات رقابية شرطية */
+.q-note--danger {
+  border-color: var(--damask-red);
+  border-inline-start: 5px solid var(--damask-red);
+  background: rgba(109, 34, 45, 0.42);
+  color: var(--ink);
+  font-weight: 700;
+}
+.q-note--warning {
+  border-color: var(--golden-wheat);
+  border-inline-start: 5px solid var(--golden-wheat);
+  background: rgba(185, 167, 121, 0.18);
+  color: var(--ink);
+  font-weight: 700;
+}
+.q-note--ok {
+  border-inline-start: 5px solid var(--mountain-teal);
+  background: rgba(66, 129, 119, 0.16);
+  color: var(--ink);
+}
+:root[data-theme='light'] .q-note--danger { background: rgba(109, 34, 45, 0.1); border-inline-start-color: var(--damask-red); }
+:root[data-theme='light'] .q-note--warning { background: rgba(185, 167, 121, 0.22); border-inline-start-color: var(--antique-sand); }
+.q-note__hint { margin: 4px 0 0; font-weight: 400; font-size: 0.86rem; opacity: 0.85; }
+
 /* ---------- المجموعة ---------- */
 
 .q-group__head {

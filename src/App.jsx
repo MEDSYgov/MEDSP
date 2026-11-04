@@ -132,7 +132,7 @@ function Platform({ me, signOut, theme, toggleTheme, route }) {
     const first = FIRST.find(([sec]) => can(sec));
     window.location.hash = first ? first[1] : '#/admin';
   });
-  const user = { name: me.displayName || me.username, workspace: WORKSPACE[me.role], onSignOut: signOut };
+  const user = { name: me.displayName || me.username, workspace: WORKSPACE[me.role], onSignOut: signOut, isAdmin: full };
   /* التقرير الظاهر يُشتق من الرابط */
   const activeId = route.page === 'ops' ? route.id : 'overview';
   const [projects, setProjects] = useState({ status: 'loading', list: [] });
