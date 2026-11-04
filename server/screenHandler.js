@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { OPS, GOVS, normalizeConfig, SLIDES } from './screenCatalog.js';
+import { OPS, GOVS, normalizeConfig, SLIDES, PHOTO_SLIDES } from './screenCatalog.js';
 
 const SB_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_KEY;
@@ -189,6 +189,31 @@ export function buildSlides(cfg) {
       }
       if (!n) continue;
       out.push({ ...base, sites: n, volume: Math.round(vol), items: [...byGov].map(([name, value]) => ({ name, value: Math.round(value) })).sort((p, q) => q.value - p.value).slice(0, 6) });
+    } else if (PHOTO_SLIDES[s.id]) {
+      const o = getOps(); if (!o?.last) continue;
+      const ph = PHOTO_SLIDES[s.id];
+      const opI = o.ov.dims[0].values.indexOf(ph.op);
+      if (opI < 0) continue;
+      const at = 5 + o.ov.dims.length;
+      const mi = Object.fromEntries(o.ov.metrics.map((m, k) => [m.key, at + k]));
+      let value = 0; let prev = 0; let total = 0; let injured = 0; let dead = 0;
+      const govs = new Map();
+      for (const r of o.ov.records) {
+        if (r[5] !== opI || !r[0]) continue;
+        total += 1;
+        const ym = r[0].slice(0, 7);
+        if (ym === o.last) {
+          value += 1; injured += r[mi.injured] || 0; dead += r[mi.dead] || 0;
+          if (r[1] >= 0) govs.set(r[1], (govs.get(r[1]) || 0) + 1);
+        } else if (ym === o.prev && (!o.partial || Number(r[0].slice(8, 10)) <= o.lastDay)) prev += 1;
+      }
+      if (!value) continue;
+      const hiddenGov = new Set(cfg.hiddenGovs.map(norm));
+      const top = [...govs].map(([k, n]) => ({ name: govName(o.ov.dict.govs[k]), value: n }))
+        .filter((g) => !hiddenGov.has(norm(g.name))).sort((a, b) => b.value - a.value)[0];
+      out.push({ ...base, photo: ph.photo, focus: ph.focus, kicker: ph.kicker, noun: ph.noun, caption: ph.caption,
+        month: monthLabel(o), prevMonth: o.partial ? `${monthName(o.prev)} (الفترة نفسها)` : monthName(o.prev),
+        value, prev, total, since: monthName(o.months[0]), injured, dead, top });
     } else if (s.id === 'message') {
       if (!cfg.message.title && !cfg.message.text) continue;
       out.push({ ...base, heading: cfg.message.title, text: cfg.message.text });

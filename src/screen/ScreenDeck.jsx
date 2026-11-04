@@ -201,6 +201,24 @@ function Slide({ s, run }) {
       </div>
     );
   }
+  if (s.photo) {
+    return (
+      <div className="sx-cine">
+        <div className="sx-cine__main">
+          <p className="sx-cine__kicker"><i aria-hidden="true" />{s.kicker} <span>· {s.month}</span></p>
+          <div className="sx-cine__giant"><Count value={s.value} run={run} /></div>
+          <p className="sx-cine__noun">{s.noun}<span>{s.caption}</span></p>
+          <Delta now={s.value} prev={s.prev} label={`مقارنة بـ${s.prevMonth}`} />
+        </div>
+        <dl className="sx-cine__stats">
+          {s.injured > 0 && <div style={{ '--i': 0 }}><dt>إصابة أُسعفت</dt><dd><Count value={s.injured} run={run} /></dd></div>}
+          {s.dead > 0 && <div style={{ '--i': 1 }}><dt>حالة وفاة</dt><dd><Count value={s.dead} run={run} /></dd></div>}
+          {s.top && <div style={{ '--i': 2 }}><dt>الأعلى: {s.top.name}</dt><dd><Count value={s.top.value} run={run} /></dd></div>}
+          <div style={{ '--i': 3 }} className="is-gold"><dt>منذ {s.since}</dt><dd><Count value={s.total} run={run} /></dd></div>
+        </dl>
+      </div>
+    );
+  }
   if (s.id === 'message') {
     return (
       <div className="sx-message">
@@ -237,7 +255,12 @@ export default function ScreenDeck({ data, preview = false }) {
 
   const cur = slides[Math.min(i, slides.length - 1)];
   return (
-    <div className={`sx${preview ? ' sx--preview' : ''}`} style={{ '--sec': `${sec}s` }}>
+    <div className={`sx${preview ? ' sx--preview' : ''}${cur?.photo ? ' sx--photo' : ''}`} style={{ '--sec': `${sec}s` }}>
+      {cur?.photo && (
+        <div key={`ph-${cur.id}-${tick}`} className="sx-photo" aria-hidden="true">
+          <img src={cur.photo} alt="" style={{ objectPosition: cur.focus || '50% 50%' }} />
+        </div>
+      )}
       <header className="sx-top">
         <img className="sx-emblem" src="brand/emblem.svg" alt="" />
         <div className="sx-brand">
