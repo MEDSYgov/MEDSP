@@ -18,7 +18,7 @@ function itemsOf(s) {
     case 'ops-total': {
       const pct = s.prev ? ((s.value - s.prev) / s.prev) * 100 : null;
       return [
-        <>عمليات الدفاع المدني في {s.month}: <N>{fmt(s.value)}</N> عملية
+        <>عمليات مديريات وزارة الطوارئ وإدارة الكوارث في {s.month}: <N>{fmt(s.value)}</N> عملية
           {pct !== null && <> <span className={pct >= 0 ? 'ticker__up' : 'ticker__down'}>{pct >= 0 ? '▲' : '▼'} <N>{fmt(Math.abs(pct), 1)}%</N></span> عن {s.prevMonth}</>}</>,
         <>إجمالي العمليات منذ {s.since}: <N>{fmt(s.total)}</N> عملية</>,
       ];

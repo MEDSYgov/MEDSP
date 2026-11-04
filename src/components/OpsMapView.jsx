@@ -334,7 +334,7 @@ export default function OpsMapView() {
           )}
         </aside>
       </div>
-      <p className="omap-src">المصدر: تقارير عمليات الدفاع المدني المعتمدة ({data ? fmt(data.rows.reduce((a, r) => a + r[3], 0)) : '…'} عملية محددة الموقع على مستوى التجمع). خريطة الأساس: Esri.</p>
+      <p className="omap-src">المصدر: تقارير عمليات مديريات وزارة الطوارئ وإدارة الكوارث المعتمدة ({data ? fmt(data.rows.reduce((a, r) => a + r[3], 0)) : '…'} عملية محددة الموقع على مستوى التجمع). خريطة الأساس: Esri.</p>
     </section>
   );
 }
