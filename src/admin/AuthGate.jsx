@@ -15,13 +15,14 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [remember, setRemember] = useState(true);
 
   const submit = async () => {
     setError('');
     if (!username || !password) { setError('أدخل اسم المستخدم وكلمة المرور'); return; }
     setBusy(true);
     try {
-      await store.signIn(username, password);
+      await store.signIn(username, password, { remember });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -49,6 +50,11 @@ function LoginForm() {
             autoComplete="current-password"
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && submit()} />
+        </label>
+
+        <label className="gate__remember">
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+          <span>تذكّرني على هذا الجهاز<small>لا تفعّلها على جهاز يستخدمه غيرك.</small></span>
         </label>
 
         {error && <p className="auth__err">{error}</p>}

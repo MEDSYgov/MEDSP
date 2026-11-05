@@ -93,7 +93,7 @@ export function flush(send) {
         await remove(item.clientId);
         sent += 1;
       } catch (err) {
-        if (isNetworkError(err)) break; /* الشبكة ما زالت منقطعة — لا فائدة من البقية الآن */
+        if (isNetworkError(err) || err?.auth) break; /* بلا شبكة أو بلا دخول — تبقى محفوظة حتى يُحلّ ذلك */
         failed += 1;
         // eslint-disable-next-line no-await-in-loop
         await update({ ...item, attempts: item.attempts + 1, rejected: true, lastError: err.message });
