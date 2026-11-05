@@ -91,6 +91,16 @@ export default function MainNav({ route, ops, projects, projectsStatus, can = ()
   /* أغلق عند تغيّر الصفحة */
   useEffect(() => { setOpen(null); }, [route]);
 
+  /* الهاتف: الشريط يتمرر أفقياً، فنُظهر التبويب الحالي بدل أن يبقى مقصوصاً عند الحافة */
+  const bar = useRef(null);
+  useEffect(() => {
+    const el = bar.current;
+    const on = el?.querySelector('.categories__item.is-active');
+    if (!el || !on || el.scrollWidth <= el.clientWidth) return;
+    const b = el.getBoundingClientRect(); const r = on.getBoundingClientRect();
+    el.scrollBy({ left: (r.left + r.width / 2) - (b.left + b.width / 2), behavior: 'smooth' });
+  }, [route.page, route.id]);
+
   /* أغلق بـ Esc أو بالضغط خارج الشريط */
   useEffect(() => {
     if (!open) return undefined;
@@ -112,7 +122,7 @@ export default function MainNav({ route, ops, projects, projectsStatus, can = ()
   return (
     <nav className="categories mainnav" ref={ref} aria-label="التنقل الرئيسي">
       <div className="shell">
-        <div className="mainnav__bar">
+        <div className="mainnav__bar" ref={bar}>
           {can('ops') && <a href={href.overview()}
             className={`categories__item${route.page === 'overview' ? ' is-active' : ''}`}
             aria-current={route.page === 'overview' ? 'page' : undefined}>
