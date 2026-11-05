@@ -11,7 +11,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 11px 0;
+  padding-block: 11px;
 }
 
 .adminbar__label {
@@ -1933,3 +1933,16 @@ a.pedit__publish { display: inline-flex; align-items: center; text-decoration: n
 .share__login input { width: 20px; height: 20px; margin-top: 2px; accent-color: #2f9e74; flex: none; }
 .share__login span { display: grid; gap: 4px; }
 .share__login small { color: var(--ink-soft); line-height: 1.7; font-size: 0.86rem; }
+
+/* ===== الهاتف: مساحة العمل ===== */
+/* عمود الشبكة لا يتمدد بعرض محتواه (كان شريط الأقسام يوسّع الصفحة كلها) */
+.admin { grid-template-columns: minmax(0, 1fr); }
+.asec { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.asec::-webkit-scrollbar { display: none; }
+.asec__item { white-space: nowrap; flex: none; }
+.adminbar__inner { flex-wrap: wrap; row-gap: 6px; }
+.adminbar__user { flex-wrap: wrap; row-gap: 4px; }
+@media (max-width: 640px) {
+  .asec__item { padding: 8px 14px; font-size: 0.88rem; }
+  .plist__head .survey__navbtn { padding: 9px 16px; }
+}

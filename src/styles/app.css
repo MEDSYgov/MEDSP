@@ -40,7 +40,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 22px 0 18px;
+  padding-block: 22px 18px;
 }
 
 .masthead__emblem {
@@ -725,7 +725,7 @@
 }
 
 .footer__inner {
-  padding: 24px 0;
+  padding-block: 24px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px 20px;
@@ -1303,7 +1303,7 @@ button.opcard:hover {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  max-width: 17ch;
+  max-width: 24ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1451,7 +1451,7 @@ button.opcard:hover {
 @media (max-width: 640px) {
   .mainnav__bar { gap: 4px; }
   .mainnav .categories__item { padding: 8px 12px; font-size: 0.88rem; gap: 6px; }
-  .mainnav__here { max-width: 9ch; }
+  .mainnav__here { max-width: 16ch; }
   .navmenu__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .navmenu__grid--projects { grid-template-columns: 1fr; }
   .navcard { grid-template-columns: auto 1fr; padding: 11px 12px; }
@@ -2354,7 +2354,7 @@ button.rx-cell:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(
 
 /* ===== الهاتف: الترويسة وشريط التنقل ===== */
 @media (max-width: 720px) {
-  .masthead__inner { gap: 10px; padding: 14px 0 12px; }
+  .masthead__inner { gap: 10px; padding-block: 14px 12px; }
   .masthead__emblem { height: 38px; }
   .masthead__title { font-size: 1rem; line-height: 1.35; }
   .masthead__parent { font-size: 0.72rem; }
@@ -2370,7 +2370,7 @@ button.rx-cell:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(
   }
   .mainnav__bar::-webkit-scrollbar { display: none; }
   .mainnav .categories__item { flex: none; white-space: nowrap; padding: 7px 13px; font-size: 0.86rem; }
-  .mainnav__here { max-width: 11ch; }
+  .mainnav__here { max-width: 16ch; }
 }
 
 /* ===== ترحيل الأنقاض على الهاتف ===== */
@@ -3127,3 +3127,50 @@ button.masthead__login{font:inherit;cursor:pointer}
 .nbell__empty{padding:18px 16px;font-size:.88rem;color:var(--ink-soft);line-height:1.7}
 @media (max-width:640px){.nbell__btn{width:32px;height:32px}.nbell__panel{position:fixed;top:64px;inset-inline:12px;width:auto}}
 @media (max-width:640px){.ib-long{display:none}}
+
+/* ===== الهاتف: أشرطة الترتيب ===== */
+/* التسمية في سطر كامل فوق الشريط بدل اقتطاعها بنقاط، والقيمة بجانبها */
+@media (max-width: 640px) {
+  .bars__row {
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    row-gap: 6px;
+    column-gap: 9px;
+    padding-block: 7px;
+  }
+  .bars__rank { grid-row: 1 / span 2; align-self: center; }
+  .bars__label { grid-column: 2; grid-row: 1; white-space: normal; overflow: visible; line-height: 1.45; }
+  .bars__value { grid-column: 3; grid-row: 1; min-width: 0; }
+  .bars__track { grid-column: 2 / span 2; grid-row: 2; }
+}
+
+/* ===== الهاتف: الترويسة والفلاتر ===== */
+@media (max-width: 640px) {
+  /* الترويسة: العنوان في سطر، وأدوات الحساب في سطر تحته بدل تكدّسها بجانبه */
+  .masthead__inner { flex-wrap: wrap; row-gap: 10px; }
+  .masthead__titles { flex: 1 1 0; }
+  .masthead__title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .masthead__parent { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .masthead__tools:has(.masthead__user) { flex: 1 0 100%; justify-content: flex-start; padding-top: 10px; border-top: 1px solid var(--edge); }
+  .masthead__login { white-space: nowrap; }
+  .masthead__user { flex-wrap: nowrap; }
+  .masthead__tools .theme-toggle:last-child { margin-inline-start: auto; }
+
+  /* الفلاتر: عمودان بدل عمود طويل، والقائمة المنسدلة للعمود الأيسر تنفتح نحو الداخل */
+  .filters__fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .filters__fields .ffield:nth-child(2n) .dd__list { inset-inline-start: auto; inset-inline-end: 0; }
+  .dd__list { max-width: calc(100vw - 32px); }
+  .filters__dates { flex: 1 1 100%; margin-inline-start: 0; }
+  .filters__dates label { flex: 1 1 0; min-width: 0; }
+  .filters__dates input { flex: 1 1 0; min-width: 0; width: 100%; }
+}
+@media (max-width: 640px) {
+  /* إعادة هامش الصفحة الجانبي للترويسة (كانت padding المختصرة تلغيه فتلتصق بالحافة) */
+  .masthead__inner { padding-inline: var(--gutter); }
+  /* التاريخان: التسمية فوق الحقل حتى يتسعا داخل البطاقة */
+  .filters__dates label { flex-direction: column; align-items: stretch; gap: 4px; font-size: 0.76rem; }
+}
+@media (max-width: 640px) {
+  /* بطاقات أنواع العمليات: اثنتان في الصف بدل واحدة طويلة */
+  .opgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+}
