@@ -1915,3 +1915,21 @@ a.pedit__publish { display: inline-flex; align-items: center; text-decoration: n
   .scr__preview { order: -1; }
   .scr__sticky { position: static; }
 }
+
+/* دخول الاستمارات التي تتطلب حساباً */
+.gate--login { text-align: start; justify-items: stretch; }
+.gate--login .gate__icon, .gate--login h1, .gate--login .gate__lede, .gate--login .auth__note { justify-self: center; text-align: center; }
+.gate--login .bf { width: 100%; }
+.gate__remember { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-size: 0.95rem; color: var(--ink); }
+.gate__remember input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--accent, #2f9e74); flex: none; }
+.gate__remember span { display: grid; gap: 2px; }
+.gate__remember small { font-size: 0.82rem; color: var(--ink-soft); }
+.gate__submit { width: 100%; justify-content: center; }
+.fillpage__who { display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--ink-soft); }
+.fillpage__whoicon { width: 18px; height: 18px; }
+.fillpage__who button { border: 1px solid var(--edge-strong); background: transparent; color: var(--ink); border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 0.85rem; cursor: pointer; }
+.share__login { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; margin: 4px 0 16px; border-radius: 14px; border: 1px solid var(--edge); background: var(--glass); cursor: pointer; }
+.share__login.is-on { border-color: rgba(47, 158, 116, 0.6); }
+.share__login input { width: 20px; height: 20px; margin-top: 2px; accent-color: #2f9e74; flex: none; }
+.share__login span { display: grid; gap: 4px; }
+.share__login small { color: var(--ink-soft); line-height: 1.7; font-size: 0.86rem; }
