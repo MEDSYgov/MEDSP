@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getPublicSurvey, unlockSurvey, createResponse, cacheSurvey } from './store';
+import { getPublicSurvey, unlockSurvey, createResponse, cacheSurvey, signIn, signOut, getSession, getMyRole } from './store';
 import * as outbox from './outbox';
 import SurveyPage from '../survey/SurveyPage';
 import Icon from '../components/Icon';
@@ -114,6 +114,50 @@ function Outbox({ surveyId, online }) {
   );
 }
 
+/* ---------------- الدخول (للاستمارات التي تتطلبه) ---------------- */
+
+function SurveyLogin({ title, onDone }) {
+  const [username, setUsername] = useState('');
+  const [pw, setPw] = useState('');
+  const [remember, setRemember] = useState(true);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    setError('');
+    if (!username || !pw) { setError('أدخل اسم المستخدم وكلمة المرور'); return; }
+    setBusy(true);
+    try { await signIn(username.trim(), pw, { remember }); onDone(); } catch (e) { setError(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <Shell>
+      <form className="gate gate--login" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+        <Icon name="lock" className="gate__icon" />
+        <h1>{title}</h1>
+        <p className="gate__lede">هذه الاستمارة للحسابات المعتمدة فقط. ادخل باسم المستخدم وكلمة المرور الخاصين بك.</p>
+        <label className="bf">
+          <span className="bf__label">اسم المستخدم</span>
+          <input className="q-input bf__input" dir="ltr" value={username} autoComplete="username"
+            autoCapitalize="none" spellCheck={false} autoFocus onChange={(e) => setUsername(e.target.value)} />
+        </label>
+        <label className="bf">
+          <span className="bf__label">كلمة المرور</span>
+          <input className="q-input bf__input" type="password" dir="ltr" value={pw} autoComplete="current-password"
+            onChange={(e) => setPw(e.target.value)} />
+        </label>
+        <label className="gate__remember">
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+          <span>تذكّرني على هذا الجهاز<small>لا تفعّلها على جهاز يستخدمه غيرك.</small></span>
+        </label>
+        {error && <p className="gate__err">{error}</p>}
+        <button type="submit" className="survey__navbtn survey__navbtn--primary gate__submit" disabled={busy}>
+          {busy ? 'جارٍ التحقق…' : 'دخول'}
+        </button>
+        <p className="auth__note">لا تملك حساباً؟ يُنشئه لك مدير المنصة.</p>
+      </form>
+    </Shell>
+  );
+}
+
 /* ---------------- الصفحة ---------------- */
 
 export default function FillPage({ surveyId }) {
@@ -126,11 +170,16 @@ export default function FillPage({ surveyId }) {
   const [checking, setChecking] = useState(false);
   const [done, setDone] = useState(null);
   const [sendError, setSendError] = useState('');
+  const [reload, setReload] = useState(0);
+  const [who, setWho] = useState('');
 
   useEffect(() => {
     let alive = true;
-    getPublicSurvey(surveyId).then((res) => {
+    getPublicSurvey(surveyId).then(async (res) => {
       if (!alive) return;
+      /* بلا شبكة واستمارة تتطلب الدخول: لا تُفتح النسخة المحفوظة إلا بجلسة على الجهاز */
+      if (res.fromCache && res.requiresLogin && !(await getSession())) { setState({ status: 'login-offline' }); return; }
+      if (res.requiresLogin) getMyRole().then((m) => alive && setWho(m?.displayName || m?.username || '')).catch(() => {});
       setState(res);
       if (res.fromCache && res.cached?.definition) {
         /* بلا شبكة: من النسخة المحفوظة على الجهاز */
@@ -141,7 +190,9 @@ export default function FillPage({ surveyId }) {
       }
     });
     return () => { alive = false; };
-  }, [surveyId]);
+  }, [surveyId, reload]);
+
+  const logout = async () => { await signOut(); setDefinition(null); setWho(''); setState({ status: 'loading' }); setReload((n) => n + 1); };
 
   if (state.status === 'loading') return <Message title="جارٍ التحميل" body="لحظة من فضلك." />;
 
@@ -149,6 +200,26 @@ export default function FillPage({ surveyId }) {
     return (
       <Message icon="lock" title="لا يوجد اتصال بالإنترنت"
         body="هذا الاستبيان لم يُفتح على هذا الجهاز من قبل، فلا توجد نسخة محفوظة منه. افتح الرابط مرة واحدة وأنت متصل، وبعدها يعمل بلا إنترنت." />
+    );
+  }
+
+  if (state.status === 'login') {
+    return <SurveyLogin title={state.survey?.title || 'استمارة'} onDone={() => { setState({ status: 'loading' }); setReload((n) => n + 1); }} />;
+  }
+
+  if (state.status === 'login-offline') {
+    return (
+      <Message icon="lock" title="يلزم تسجيل الدخول"
+        body="هذه الاستمارة تتطلب الدخول بحسابك، ولا يوجد اتصال الآن. اتصل بالإنترنت وادخل مرة واحدة (مع «تذكّرني»)، وبعدها تعمل بلا إنترنت." />
+    );
+  }
+
+  if (state.status === 'forbidden') {
+    return (
+      <Message icon="lock" title="هذا الحساب غير مخوّل"
+        body="حسابك لا يملك صلاحية تعبئة هذه الاستمارة. اطلب من مدير المنصة إسنادها إليك، أو ادخل بحساب آخر.">
+        <button type="button" className="survey__navbtn" onClick={logout}>الدخول بحساب آخر</button>
+      </Message>
     );
   }
 
@@ -242,6 +313,12 @@ export default function FillPage({ surveyId }) {
     <div className="fillpage">
       <div className="shell fillpage__top">
         {state.projectName && <span className="fillpage__crumb">{state.projectName}</span>}
+        {who && (
+          <span className="fillpage__who">
+            <Icon name="staff" className="fillpage__whoicon" />{who}
+            <button type="button" onClick={logout}>خروج</button>
+          </span>
+        )}
         <span className={`fillpage__net${online ? '' : ' is-off'}`}>
           {online ? 'متصل' : 'بلا اتصال — تُحفظ الاستمارة على الجهاز'}
         </span>
@@ -260,12 +337,13 @@ export default function FillPage({ surveyId }) {
             await createResponse(surveyId, answers, { source: 'link', password, meta, clientId });
             setDone('sent');
           } catch (err) {
-            if (outbox.isNetworkError(err)) {
+            if (outbox.isNetworkError(err) || err.auth) {
               /* بلا شبكة: نحفظ على الجهاز بنفس المعرّف، فإعادة الإرسال لا تكرر */
               await outbox.enqueue({
                 clientId, surveyId, answers, password,
                 meta: { ...meta, offline: true, queuedAt: new Date().toISOString() },
               });
+              if (err.auth) { setState({ status: 'login', survey: { title: definition.title } }); return; }
               setDone('queued');
             } else {
               setSendError(`${err.message}. إجاباتك ما زالت هنا — حاول الإرسال مجدداً.`);

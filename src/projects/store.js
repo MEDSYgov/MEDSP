@@ -9,7 +9,7 @@
   يبقى هذا الملف كما هو ويتغير عنوان الاتصال فقط.
 */
 
-import { supabase } from './supabase';
+import { supabase, REMEMBER_KEY } from './supabase';
 
 /* ---------- أدوات ---------- */
 
@@ -46,6 +46,7 @@ const mapSurvey = (r) => r && ({
   report: r.report || {},
   open: r.is_open,
   hasPassword: Boolean(r.has_password),
+  requiresLogin: Boolean(r.requires_login),
   closesAt: r.closes_at || '',
   createdAt: r.created_at,
   updatedAt: r.updated_at,
@@ -67,7 +68,7 @@ const mapResponse = (r) => r && ({
 });
 
 /* بصمة كلمة المرور لا تُقرأ أبداً للواجهة — فقط هل هي موجودة */
-const SURVEY_COLS = 'id, project_id, title, description, pages, report, is_open, closes_at, created_at, updated_at, has_password';
+const SURVEY_COLS = 'id, project_id, title, description, pages, report, is_open, closes_at, created_at, updated_at, has_password, requires_login';
 
 const withFlag = (row) => row;
 
@@ -85,7 +86,8 @@ export async function getSession() {
 const DOMAIN = '@medsp.invalid';
 const toEmail = (username) => `${String(username).trim().toLowerCase()}${DOMAIN}`;
 
-export async function signIn(username, password) {
+export async function signIn(username, password, { remember = true } = {}) {
+  try { localStorage.setItem(REMEMBER_KEY, remember ? '1' : '0'); } catch { /* */ }
   const { data, error } = await supabase.auth.signInWithPassword({
     email: toEmail(username), password,
   });
@@ -266,6 +268,7 @@ export async function updateSurvey(id, patch) {
   if ('report' in patch) row.report = patch.report || {};
   if ('open' in patch) row.is_open = patch.open;
   if ('closesAt' in patch) row.closes_at = patch.closesAt || null;
+  if ('requiresLogin' in patch) row.requires_login = Boolean(patch.requiresLogin);
   const { data, error } = await supabase.from('surveys').update(row).eq('id', id).select(SURVEY_COLS).single();
   fail(error);
   return mapSurvey(withFlag(data));
@@ -282,8 +285,8 @@ export async function deleteSurvey(id) {
   (bcrypt) — لا تُحفظ نصاً ولا تُقرأ مرة أخرى.
   password: undefined = لا تغيير، '' = إزالة، نص = تعيين
 */
-export async function openSurveyLink(id, { open, closesAt, password }) {
-  await updateSurvey(id, { open, closesAt });
+export async function openSurveyLink(id, { open, closesAt, password, requiresLogin }) {
+  await updateSurvey(id, { open, closesAt, ...(requiresLogin === undefined ? {} : { requiresLogin }) });
   if (password !== undefined) {
     const { error } = await supabase.rpc('set_survey_password', { p_survey: id, p_password: password });
     fail(error);
@@ -369,6 +372,12 @@ export async function createResponse(surveyId, answers, opts = {}) {
   if (error && looksOffline(error)) {
     const err = new Error('لا يوجد اتصال بالإنترنت');
     err.cause = error;
+    throw err;
+  }
+  if (error && /تسجيل الدخول/.test(error.message || '')) {
+    /* انتهت الجلسة أو لم يُسجَّل الدخول: الإجابة تبقى محفوظة حتى يدخل من جديد */
+    const err = new Error('يلزم تسجيل الدخول');
+    err.auth = true;
     throw err;
   }
   fail(error, 'تعذّر إرسال الإجابة');

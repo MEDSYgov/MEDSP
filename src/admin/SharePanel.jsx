@@ -92,6 +92,17 @@ export default function SharePanel({ survey, onUpdate }) {
         </span>
       </div>
 
+      <label className={`share__login${survey.requiresLogin ? ' is-on' : ''}`}>
+        <input type="checkbox" checked={survey.requiresLogin} disabled={busy}
+          onChange={(e) => run({ open: survey.open, closesAt: survey.closesAt || '', requiresLogin: e.target.checked })} />
+        <span>
+          <strong>يتطلب تسجيل الدخول</strong>
+          <small>{survey.requiresLogin
+            ? 'لا تُفتح الاستمارة إلا بحساب شخصي أُسندت إليه (جامع بيانات أو مراجع)، وكل إجابة تُسجَّل باسم مُرسلها. أسنِد الاستمارة للحسابات من «الحسابات».'
+            : 'الرابط مفتوح لمن يملكه (مع كلمة مرور اختيارية). فعّل هذا ليُشترط الدخول بحساب شخصي.'}</small>
+        </span>
+      </label>
+
       <div className="share__grid">
         <div className="bf">
           <span className="bf__label">

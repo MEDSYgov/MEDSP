@@ -19,8 +19,26 @@ import { SUPABASE_URL, SUPABASE_KEY, configMissing } from '../config.js';
 const URL = configMissing ? 'http://config-missing.invalid' : SUPABASE_URL;
 const KEY = configMissing ? 'config-missing' : SUPABASE_KEY;
 
+/*
+  «تذكّرني»: الجلسة تُحفظ في localStorage (تبقى بعد إغلاق المتصفح)،
+  وبدونه في sessionStorage (تنتهي بإغلاق المتصفح). الافتراضي: تذكّر.
+*/
+export const REMEMBER_KEY = 'medsp-remember';
+const safe = (fn, fb = null) => { try { return fn(); } catch { return fb; } };
+const authStorage = {
+  getItem: (k) => safe(() => localStorage.getItem(k)) ?? safe(() => sessionStorage.getItem(k)),
+  setItem: (k, v) => {
+    if (safe(() => localStorage.getItem(REMEMBER_KEY)) === '0') {
+      safe(() => sessionStorage.setItem(k, v)); safe(() => localStorage.removeItem(k));
+    } else {
+      safe(() => localStorage.setItem(k, v)); safe(() => sessionStorage.removeItem(k));
+    }
+  },
+  removeItem: (k) => { safe(() => localStorage.removeItem(k)); safe(() => sessionStorage.removeItem(k)); },
+};
+
 export const supabase = createClient(URL, KEY, {
-  auth: { persistSession: true, autoRefreshToken: true },
+  auth: { persistSession: true, autoRefreshToken: true, storage: authStorage },
 });
 
 export default supabase;
