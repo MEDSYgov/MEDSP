@@ -104,7 +104,8 @@ export default async function handler(req, res) {
 
     const full = me.role === 'super_admin' || me.role === 'admin';
     if (!full) {
-      if (me.role === 'collector') return send(req, res, 403, { error: 'غير مصرّح' });
+      /* جامع البيانات والمراجع: مساحة العمل فقط، لا بيانات للمنصة */
+      if (me.role !== 'viewer') return send(req, res, 403, { error: 'غير مصرّح' });
       const secs = me.sections || [];
       if (secs.length && !SECTIONS[name].some((s) => secs.includes(s))) return send(req, res, 403, { error: 'غير مصرّح' });
     }

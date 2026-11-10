@@ -30,7 +30,15 @@ const ReportsPage = lazy(() => import('./reports/ReportsPage'));
 /* الأقسام: ops (النظرة العامة والعمليات والخرائط) · monthly · rubble · projects */
 const SECTION_OF = { overview: 'ops', ops: 'ops', maps: 'ops', monthly: 'monthly', rubble: 'rubble', projects: 'projects', project: 'projects', 'test-project': 'projects', reports: 'reports' };
 const FIRST = [['ops', '#/'], ['rubble', '#/rubble'], ['monthly', '#/monthly'], ['projects', '#/projects']];
+/* جامع البيانات والمراجع يعملان في مساحة العمل فقط، ولا يريان المنصة إطلاقاً */
+const PLATFORM_ROLES = ['super_admin', 'admin', 'viewer'];
 const WORKSPACE = { super_admin: 'مساحة العمل', admin: 'مساحة العمل', reviewer: 'مراجعة الاستبيانات', collector: 'استبياناتي' };
+
+/* أي صفحة من المنصة لحساب غير مخوّل ← تحويل فوري إلى مساحة العمل دون عرض شيء */
+function WorkspaceOnly() {
+  useEffect(() => { window.location.replace('#/admin'); }, []);
+  return null;
+}
 
 export default function App() {
   const { theme, toggle: toggleTheme } = useTheme();
@@ -64,7 +72,9 @@ export default function App() {
     <AuthGate wrap={frame}
       guest={route.page === 'overview' || route.page === 'reports'
         ? () => <PublicSite route={route} theme={theme} toggleTheme={toggleTheme} /> : undefined}>
-      {({ me, signOut }) => <Platform me={me} signOut={() => { clearData(); signOut(); }} theme={theme} toggleTheme={toggleTheme} route={route} />}
+      {({ me, signOut }) => (!PLATFORM_ROLES.includes(me.role) && route.page !== 'admin'
+        ? <WorkspaceOnly />
+        : <Platform me={me} signOut={() => { clearData(); signOut(); }} theme={theme} toggleTheme={toggleTheme} route={route} />)}
     </AuthGate>
   );
 }
@@ -124,7 +134,7 @@ function PublicOverview() {
 function Platform({ me, signOut, theme, toggleTheme, route }) {
   const full = me.role === 'super_admin' || me.role === 'admin';
   /* التقارير متاحة لكل حساب له دور (عدا جامع البيانات)، دون تقييد بالأقسام */
-  const can = (sec) => full || (me.role !== 'collector' && (sec === 'reports' || !me.sections?.length || me.sections.includes(sec)));
+  const can = (sec) => full || (PLATFORM_ROLES.includes(me.role) && (sec === 'reports' || !me.sections?.length || me.sections.includes(sec)));
   const allowedHere = route.page === 'admin' || can(SECTION_OF[route.page] || 'ops');
   /* صفحة غير مسموحة (مثل النظرة العامة لحساب الأنقاض فقط) ← أول قسم مسموح */
   useEffect(() => {
@@ -242,7 +252,7 @@ function Platform({ me, signOut, theme, toggleTheme, route }) {
                     <span className="adminbar__user">
                       <span>{me.displayName}</span>
                       <button type="button" className="adminbar__exit" onClick={signOut}>خروج</button>
-                      {me.role !== 'collector' && <a className="adminbar__exit" href="#/">المنصة</a>}
+                      {PLATFORM_ROLES.includes(me.role) && <a className="adminbar__exit" href="#/">المنصة</a>}
                     </span>
                   </div>
                 </div>
