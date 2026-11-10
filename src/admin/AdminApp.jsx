@@ -171,7 +171,7 @@ function ProjectList({ projects, counts, onOpen, onCreate, onDelete }) {
 
 /* ---------------- محرر المشروع ---------------- */
 
-function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'build', reviewer = false, entityReviewer = false }) {
+function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'build', reviewer = false, entityReviewer = false, onlySurveys = null }) {
   const areas = useAreas(basemap);
   const [project, setProject] = useState(null);
   const [surveys, setSurveys] = useState([]);
@@ -187,6 +187,7 @@ function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'bu
   const load = useCallback(async () => {
     const p = await store.getProject(projectId);
     let s = await store.listSurveys(projectId);
+    if (onlySurveys) s = s.filter((x) => onlySurveys.includes(x.id));
     /* مشروع البيانات يحمل جدولاً واحداً داخلياً — يُنشأ إن لم يوجد */
     if (p?.kind === 'data' && s.length === 0) {
       await store.createSurvey(projectId, { title: p.name, pages: [{ name: 'p1', title: 'البيانات', children: [] }] });
@@ -521,11 +522,18 @@ export default function AdminApp({ basemap, me }) {
   const [startTab, setStartTab] = useState('build');
 
   const refresh = useCallback(async () => {
-    const list = await store.listProjects();
-    setProjects(list);
+    let list = await store.listProjects();
     const map = {};
     const all = await store.listResponses();
-    const surveys = await store.listSurveys();
+    let surveys = await store.listSurveys();
+    /* المراجع: الاستبيانات المسندة إليه ومشاريعها فقط (القاعدة تفرض ذلك أيضاً) */
+    if (me.role === 'reviewer') {
+      const mine = new Set(me.surveys || []);
+      surveys = surveys.filter((x) => mine.has(x.id));
+      const pids = new Set(surveys.map((x) => x.projectId));
+      list = list.filter((p) => pids.has(p.id));
+    }
+    setProjects(list);
     for (const p of list) {
       const ids = new Set(surveys.filter((s) => s.projectId === p.id).map((s) => s.id));
       const rows = all.filter((r) => ids.has(r.surveyId));
@@ -537,7 +545,7 @@ export default function AdminApp({ basemap, me }) {
       };
     }
     setCounts(map);
-  }, []);
+  }, [me.role, me.surveys]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -577,6 +585,7 @@ export default function AdminApp({ basemap, me }) {
           initialTab={startTab}
           reviewer={reviewer}
           entityReviewer={reviewer && Boolean(me.entity)}
+          onlySurveys={reviewer ? (me.surveys || []) : null}
           onBack={() => { setOpen(null); setStartTab('build'); refresh(); }}
           onChanged={refresh}
         />
