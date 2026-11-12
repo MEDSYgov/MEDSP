@@ -66,6 +66,8 @@ const mapResponse = (r) => r && ({
   edited: r.edited,
   history: r.history || [],
   meta: r.meta || {},
+  deletedAt: r.deleted_at || null,
+  deletedBy: r.deleted_by || null,
 });
 
 /* بصمة كلمة المرور لا تُقرأ أبداً للواجهة — فقط هل هي موجودة */
@@ -362,11 +364,31 @@ export async function unlockSurvey(id, password) {
 /* ---------- الإجابات ---------- */
 
 export const RESPONSE_STATUS = {
-  pending: 'بانتظار المراجعة',
-  confirmed: 'مؤكد من الجهة',
-  approved: 'معتمد',
-  rejected: 'مرفوض',
+  pending: 'بانتظار الأخصائي',
+  returned: 'أُعيدت للتعديل',
+  confirmed: 'بانتظار الاعتماد النهائي',
+  approved: 'معتمدة',
+  rejected: 'أُعيدت للتعديل',
+  deleted: 'محذوفة',
 };
+
+/*
+  دورة الاعتماد: كل انتقال عبر الدالة review_action في القاعدة (تتحقق من الدور والحالة،
+  وتسجّل من قام به وسببه). الإجراءات: confirm | return | approve | reject | unapprove | delete | restore
+*/
+export async function reviewAction(id, action, note = '') {
+  const { data, error } = await supabase.rpc('review_action', { p_id: id, p_action: action, p_note: note || null });
+  fail(error, 'تعذّر تنفيذ الإجراء');
+  return data;
+}
+
+/* حالة ما أرسله جهاز المستبين (عبر المعرّفات التي يحفظها الجهاز) */
+export async function responseStatuses(clientIds) {
+  if (!clientIds?.length) return [];
+  const { data, error } = await supabase.rpc('response_statuses', { p_client_ids: clientIds });
+  if (error) throw error;
+  return data || [];
+}
 
 export async function listResponses({ surveyId, projectId, status } = {}) {
   let q = supabase.from('responses').select('*, surveys!inner(project_id)')
@@ -410,6 +432,8 @@ async function currentUserLabel() {
 }
 
 export async function reviewResponse(id, status, { note = '' } = {}) {
+  const action = { confirmed: 'confirm', approved: 'approve', returned: 'return', rejected: 'return' }[status];
+  if (action) return reviewAction(id, action, note);
   const by = await currentUserLabel();
   const { data: cur, error: e1 } = await supabase.from('responses').select('history').eq('id', id).single();
   fail(e1);
@@ -422,6 +446,9 @@ export async function reviewResponse(id, status, { note = '' } = {}) {
 }
 
 export async function editResponseAnswer(id, field, value) {
+  const { error: rpcErr } = await supabase.rpc('edit_response', { p_id: id, p_field: field, p_value: value ?? null });
+  if (!rpcErr) return true;
+  if (!/edit_response|function/i.test(rpcErr.message || '')) fail(rpcErr, 'تعذّر حفظ التعديل');
   const by = await currentUserLabel();
   const { data: cur, error: e1 } = await supabase.from('responses').select('answers, history').eq('id', id).single();
   fail(e1);
@@ -437,16 +464,16 @@ export async function editResponseAnswer(id, field, value) {
   return mapResponse(data);
 }
 
-export async function deleteResponse(id) {
-  const { error } = await supabase.from('responses').delete().eq('id', id);
-  fail(error);
+/* حذف ناعم (يُسترجع من «المحذوفة») مع سبب */
+export async function deleteResponse(id, note = '') {
+  await reviewAction(id, 'delete', note);
   return true;
 }
 
-export async function bulkReview(ids, status) {
+export async function bulkReview(ids, action) {
   for (const id of ids) {
     // eslint-disable-next-line no-await-in-loop
-    await reviewResponse(id, status);
+    await reviewAction(id, action);
   }
   return true;
 }
