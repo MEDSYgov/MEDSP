@@ -290,9 +290,10 @@ export default function useSurvey(definition, options = {}) {
   const fresh = useCallback(() => ({
     answers: initialAnswers(allNodes, options.initialAnswers),
     touched: {},
-    page: 0,
+    /* استكمال مسودة: يُفتح على الصفحة التي توقف عندها */
+    page: Math.min(Math.max(0, options.initialPage || 0), Math.max(0, pages.length - 1)),
     showErrors: false,
-  }), [allNodes, options.initialAnswers]);
+  }), [allNodes, options.initialAnswers, options.initialPage, pages.length]);
 
   const [state, dispatch] = useReducer(reducer, null, fresh);
 
@@ -389,6 +390,8 @@ export default function useSurvey(definition, options = {}) {
   return {
     /* الحالة */
     answers: answers,
+    /* الإجابات كما أدخلها المستخدم (بلا المحسوبة) — لحفظ المسودة */
+    rawAnswers: state.answers,
     page: state.page,
     pages,
     visible,
