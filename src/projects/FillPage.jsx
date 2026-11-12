@@ -54,8 +54,14 @@ const SENT_LABEL = { pending: 'بانتظار المراجعة', confirmed: 'ب�
 function SentList({ surveyId, online, tick }) {
   const [list] = useState(() => { try { return JSON.parse(localStorage.getItem(SENT(surveyId)) || '[]'); } catch { return []; } });
   const [st, setSt] = useState({});
-  const [open, setOpen] = useState(false);
-  const items = (() => { try { return JSON.parse(localStorage.getItem(SENT(surveyId)) || '[]'); } catch { return list; } })();
+  const [open, setOpen] = useState(true);
+  const [queued, setQueued] = useState(new Set());
+  useEffect(() => {
+    const r = () => outbox.list(surveyId).then((l) => setQueued(new Set(l.map((i) => i.clientId)))).catch(() => {});
+    r(); return outbox.subscribe(r);
+  }, [surveyId]);
+  const items = (() => { try { return JSON.parse(localStorage.getItem(SENT(surveyId)) || '[]'); } catch { return list; } })()
+    .filter((x) => !queued.has(x.id));
   useEffect(() => {
     if (!online || !items.length) return;
     responseStatuses(items.map((x) => x.id)).then((rows) => setSt(Object.fromEntries(rows.map((r) => [r.clientId, r])))).catch(() => {});
@@ -65,7 +71,7 @@ function SentList({ surveyId, online, tick }) {
   return (
     <div className="sent">
       <button type="button" className="sent__head" onClick={() => setOpen(!open)} aria-expanded={open}>
-        <b>ما أرسلته من هذا الجهاز ({items.length})</b>
+        <b>أُرسلت من هذا الجهاز ({items.length})</b>
         <span>
           {c('approved') > 0 && <i className="is-ok">{c('approved')} معتمدة</i>}
           {c('returned') > 0 && <i className="is-bad">{c('returned')} أُعيدت للتعديل</i>}
@@ -78,7 +84,7 @@ function SentList({ surveyId, online, tick }) {
             return (
               <li key={x.id} className={`sent__row is-${r?.status || 'queued'}`}>
                 <time>{new Date(x.at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</time>
-                <span>{r ? SENT_LABEL[r.status] || r.status : online ? 'لم تصل بعد' : 'تظهر الحالة عند الاتصال'}</span>
+                <span>{r ? `✓ وصلت — ${SENT_LABEL[r.status] || r.status}` : online ? 'وصلت ✓' : '✓ أُرسلت — تظهر حالة المراجعة عند الاتصال'}</span>
                 {r?.note && <small>السبب: {r.note}</small>}
               </li>
             );
@@ -186,6 +192,12 @@ function Outbox({ surveyId, online }) {
 
   /* إرسال تلقائي: عند فتح الصفحة، وعند عودة الشبكة، وكل نصف دقيقة ما دام هناك انتظار */
   useEffect(() => { if (online) flushNow(); }, [online, flushNow]);
+  /* إعادة محاولة دورية ما دام الجهاز متصلاً (لعطل مؤقت في السيرفر) */
+  useEffect(() => {
+    if (!online) return undefined;
+    const t = setInterval(() => { flushNow(); }, 60000);
+    return () => clearInterval(t);
+  }, [online, flushNow]);
   const pending = items.filter((i) => !i.rejected);
   useEffect(() => {
     if (!online || pending.length === 0) return undefined;
@@ -193,44 +205,55 @@ function Outbox({ surveyId, online }) {
     return () => clearInterval(t);
   }, [online, pending.length, flushNow]);
 
-  const rejected = items.filter((i) => i.rejected);
+  const [one, setOne] = useState(null);
+  const sendOne = async (id) => {
+    setOne(id);
+    try { await outbox.retry(id); setLast(await outbox.flush(send, id)); } finally { setOne(null); refresh(); }
+  };
+  const fmt = (t) => new Date(t).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
+
   if (items.length === 0) {
     return last?.sent ? (
       <div className="outbox outbox--ok" role="status">
         <Icon name="check" className="outbox__icon" />
-        <span>أُرسلت {last.sent} {last.sent === 1 ? 'استمارة محفوظة' : 'استمارات محفوظة'} بنجاح.</span>
+        <span>أُرسلت {last.sent} {last.sent === 1 ? 'استمارة' : 'استمارات'} بنجاح.</span>
       </div>
     ) : null;
   }
 
   return (
     <div className={`outbox${online ? '' : ' outbox--offline'}`} role="status">
-      {pending.length > 0 && (
-        <div className="outbox__row">
-          <span className="outbox__count">{pending.length}</span>
-          <span className="outbox__text">
-            <strong>{pending.length === 1 ? 'استمارة محفوظة' : 'استمارات محفوظة'} على هذا الجهاز بانتظار الإرسال</strong>
-            <span>{online
-              ? (busy ? 'جارٍ الإرسال…' : 'ستُرسل تلقائياً. أبقِ هذه الصفحة مفتوحة حتى تُرسل.')
-              : 'لا يوجد اتصال. تُرسل تلقائياً عند عودة الشبكة وهذه الصفحة مفتوحة.'}</span>
-          </span>
-          {online && (
-            <button type="button" className="q-btn q-btn--sm" onClick={flushNow} disabled={busy}>أرسل الآن</button>
-          )}
-        </div>
-      )}
-      {rejected.map((i) => (
-        <div className="outbox__row outbox__row--bad" key={i.clientId}>
-          <span className="outbox__text">
-            <strong>استمارة رفضها الخادم</strong>
-            <span>{i.lastError}. حُفظت في {new Date(i.queuedAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}.</span>
-          </span>
-          <button type="button" className="q-btn q-btn--sm q-btn--danger"
-            onClick={() => { if (window.confirm('حذف هذه الاستمارة من الجهاز نهائياً؟')) outbox.remove(i.clientId); }}>
-            حذف
-          </button>
-        </div>
-      ))}
+      <div className="outbox__head">
+        <b>لم تُرسل بعد ({items.length})</b>
+        <span>{online ? 'تُرسل تلقائياً، أو اضغط «إرسال»' : 'لا يوجد اتصال — تُرسل عند عودة الشبكة'}</span>
+      </div>
+      <ul className="outbox__list">
+        {items.map((i) => {
+          const sending = one === i.clientId || (busy && !i.rejected);
+          return (
+            <li key={i.clientId} className={`outbox__item${i.rejected ? ' is-bad' : ''}`}>
+              <span className="outbox__text">
+                <strong>{drafts.draftLabel(i.answers)}</strong>
+                <small>
+                  <bdi dir="ltr">{fmt(i.queuedAt)}</bdi>
+                  <em>{sending ? 'جارٍ الإرسال…' : i.rejected ? 'لم تُقبل' : 'لم تُرسل'}</em>
+                </small>
+                {i.rejected && i.lastError && <small className="outbox__why">السبب: {i.lastError}</small>}
+              </span>
+              <button type="button" className="survey__navbtn survey__navbtn--primary outbox__send"
+                disabled={!online || sending} onClick={() => sendOne(i.clientId)}>
+                {sending ? '…' : 'إرسال'}
+              </button>
+              {i.rejected && (
+                <button type="button" className="q-btn q-btn--sm q-btn--danger"
+                  onClick={() => { if (window.confirm('حذف هذه الاستمارة من الجهاز نهائياً؟')) outbox.remove(i.clientId); }}>
+                  حذف
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -450,7 +473,7 @@ export default function FillPage({ surveyId }) {
           <h1>{queued ? 'حُفظت على هذا الجهاز' : 'وصلت إجابتك'}</h1>
           <p>
             {queued
-              ? 'لا يوجد اتصال الآن، فحُفظت الاستمارة على الهاتف. ستُرسل تلقائياً عند عودة الشبكة — افتح هذا الرابط حينها إن أغلقته.'
+              ? (online ? 'تعذّر الوصول إلى السيرفر الآن، فحُفظت الاستمارة على الهاتف. ستُعاد المحاولة تلقائياً كل دقيقة — أبقِ الصفحة مفتوحة أو افتح الرابط لاحقاً.' : 'لا يوجد اتصال الآن، فحُفظت الاستمارة على الهاتف. ستُرسل تلقائياً عند عودة الشبكة — افتح هذا الرابط حينها إن أغلقته.')
               : 'شكراً لك. ستُراجع البيانات قبل اعتمادها.'}
           </p>
           <Outbox surveyId={surveyId} online={online} />
@@ -519,7 +542,7 @@ export default function FillPage({ surveyId }) {
             await dropCurrentDraft();
             setDone('sent');
           } catch (err) {
-            if (outbox.isNetworkError(err) || err.auth) {
+            if (outbox.isNetworkError(err) || err.auth || err.retry) {
               /* بلا شبكة: نحفظ على الجهاز بنفس المعرّف، فإعادة الإرسال لا تكرر */
               await outbox.enqueue({
                 clientId, surveyId, answers, password, token,
