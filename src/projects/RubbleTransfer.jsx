@@ -739,7 +739,7 @@ function SurveyModal({ s, onClose }) {
           <F k="ساعات عمل الآليات" v={s.hours ? `${fmt(s.hours)} ساعة` : null} />
           <F k="الأسر المستفيدة" v={s.fam ? fmt(s.fam) : null} />
           <F k="تاريخ رفع البيانات" v={s.date} />
-          <F k="الإحداثيات" v={s.lat ? `${s.lat}, ${s.lon}` : null} />
+          <F k="الإحداثيات" v={s.lat ? `${s.lat}, ${s.lon}${s.approx ? ' (تقريبية: مركز القرية)' : ''}` : null} />
           <F k="المصدر" v={s.live ? `استبيان المنصة${s.hasPhotos ? ' — الصور في مساحة العمل' : ''}` : 'KoBoToolbox'} />
         </dl>
         {photos.length > 0 && (
@@ -759,6 +759,26 @@ function SurveyModal({ s, onClose }) {
 const NATURE_VOL = [['طريق رئيسي', 'rt_vol_main'], ['طريق فرعي', 'rt_vol_sub'], ['ساحة عامة', 'rt_vol_square'],
   ['منازل مدنيين', 'rt_vol_homes'], ['منشأة - منشآت عامة', 'rt_vol_facility']];
 
+/*
+  نقطة الموقع اختيارية في الاستمارة: إن تُركت فارغة يُعتمد مركز القرية (أو الناحية)
+  المختارة، ويُعلَّم الموقع بأنه تقريبي. تُحمَّل الإحداثيات مرة واحدة من admin-areas.
+*/
+let AREA_PTS = null;
+export function loadAreaPoints() {
+  if (AREA_PTS) return Promise.resolve(AREA_PTS);
+  return getData('admin-areas').then((a) => {
+    const m = new Map();
+    for (const x of a?.subdistricts || []) if (x[3]) m.set(x[0], [x[3], x[4]]);
+    for (const x of a?.communities || []) if (x[3]) m.set(x[0], [x[3], x[4]]);
+    AREA_PTS = m;
+    return m;
+  }).catch(() => { AREA_PTS = new Map(); return AREA_PTS; });
+}
+function approxPoint(g) {
+  if (!AREA_PTS || !g) return null;
+  return AREA_PTS.get(g.community) || AREA_PTS.get(g.subdistrict) || null;
+}
+
 export function fromResponse(r, i) {
   const a = r.answers || {};
   const code = a.rt_gov?.governorate || '';
@@ -775,7 +795,9 @@ export function fromResponse(r, i) {
     by: a.rt_collector || '', co: r.entityName || a.rt_contractor_other || a.rt_contractor || 'غير محدد', nature: mainNature, natures, natureVols,
     addr: a.rt_address || '', gov: code, area: a.rt_gov?.names?.district || a.rt_area || '',
     town: a.rt_gov?.names?.subdistrict || a.rt_town || '', village: a.rt_gov?.names?.community || a.rt_village || '',
-    lat: Number(a.rt_point?.lat) || 0, lon: Number(a.rt_point?.lng) || 0,
+    ...((Number(a.rt_point?.lat) && Number(a.rt_point?.lng))
+      ? { lat: Number(a.rt_point.lat), lon: Number(a.rt_point.lng) }
+      : (() => { const p = approxPoint(a.rt_gov); return p ? { lat: p[0], lon: p[1], approx: true } : { lat: 0, lon: 0 }; })()),
     vol: Number(a.rt_volume) || 0, dump: a.rt_dump || '', dist: a.rt_distance_other ? `${a.rt_distance_other} كم` : (a.rt_distance || ''),
     hours: Number(a.rt_hours) || null, fam: Number(a.rt_families) || null, photos: [],
     hasPhotos: Boolean(r.photos),
@@ -975,6 +997,7 @@ export default function RubbleTransfer({ basemap }) {
     Promise.all([
       getData('rubble-transfer'),
       rubbleTransferFeed().catch(() => []),
+      loadAreaPoints(),
     ]).then(([base, live]) => setData({ ...base, live: live.length, surveys: [...base.surveys, ...live.map(fromResponse)] }))
       .catch(() => setError(true));
   }, []);

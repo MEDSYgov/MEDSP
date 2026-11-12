@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getPublicSurvey, unlockSurvey, createResponse, cacheSurvey, signIn, signOut, getSession, getMyRole } from './store';
+import { getPublicSurvey, unlockSurvey, createResponse, cacheSurvey, cachedSurvey, signIn, signOut, getMyRole } from './store';
+import { hasStoredSession } from './supabase';
 import * as outbox from './outbox';
 import SurveyPage from '../survey/SurveyPage';
 import Icon from '../components/Icon';
@@ -32,8 +33,47 @@ function Message({ icon, title, body, children }) {
 }
 
 const send = (item) => createResponse(item.surveyId, item.answers, {
-  password: item.password, source: 'link', meta: item.meta, clientId: item.clientId,
+  password: item.password, source: 'link', meta: item.meta, clientId: item.clientId, token: item.token,
 });
+
+/* رمز الرابط العام من عنوان الصفحة: #/s/<id>?k=<token> */
+const linkToken = () => new URLSearchParams((window.location.hash.split('?')[1]) || '').get('k') || null;
+
+/* اسم المستبين يُحفظ على الجهاز فلا يُكتب في كل مرة */
+const NAME_KEY = 'medsp-respondent';
+const savedName = () => { try { return localStorage.getItem(NAME_KEY) || ''; } catch { return ''; } };
+
+function NameGate({ title, initial = '', onDone }) {
+  const [first, setFirst] = useState(() => initial.split(' ')[0] || '');
+  const [last, setLast] = useState(() => initial.split(' ').slice(1).join(' '));
+  const [error, setError] = useState('');
+  const submit = () => {
+    const f = first.trim(); const l = last.trim();
+    if (f.length < 2 || l.length < 2) { setError('اكتب الاسم والكنية'); return; }
+    const full = `${f} ${l}`;
+    try { localStorage.setItem(NAME_KEY, full); } catch { /* */ }
+    onDone(full);
+  };
+  return (
+    <Shell>
+      <form className="gate gate--login" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+        <Icon name="staff" className="gate__icon" />
+        <h1>{title}</h1>
+        <p className="gate__lede">اكتب اسمك وكنيتك. يُرفق مع كل استمارة ترسلها، ويُحفظ على هذا الجهاز.</p>
+        <label className="bf">
+          <span className="bf__label">الاسم</span>
+          <input className="q-input bf__input" value={first} autoComplete="given-name" autoFocus onChange={(e) => setFirst(e.target.value)} />
+        </label>
+        <label className="bf">
+          <span className="bf__label">الكنية</span>
+          <input className="q-input bf__input" value={last} autoComplete="family-name" onChange={(e) => setLast(e.target.value)} />
+        </label>
+        {error && <p className="gate__err">{error}</p>}
+        <button type="submit" className="survey__navbtn survey__navbtn--primary gate__submit">متابعة</button>
+      </form>
+    </Shell>
+  );
+}
 
 function useOnline() {
   const [online, setOnline] = useState(() => navigator.onLine);
@@ -119,14 +159,13 @@ function Outbox({ surveyId, online }) {
 function SurveyLogin({ title, onDone }) {
   const [username, setUsername] = useState('');
   const [pw, setPw] = useState('');
-  const [remember, setRemember] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const submit = async () => {
     setError('');
     if (!username || !pw) { setError('أدخل اسم المستخدم وكلمة المرور'); return; }
     setBusy(true);
-    try { await signIn(username.trim(), pw, { remember }); onDone(); } catch (e) { setError(e.message); } finally { setBusy(false); }
+    try { await signIn(username.trim(), pw, { remember: true }); onDone(); } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
   return (
     <Shell>
@@ -144,10 +183,7 @@ function SurveyLogin({ title, onDone }) {
           <input className="q-input bf__input" type="password" dir="ltr" value={pw} autoComplete="current-password"
             onChange={(e) => setPw(e.target.value)} />
         </label>
-        <label className="gate__remember">
-          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-          <span>تذكّرني على هذا الجهاز<small>لا تفعّلها على جهاز يستخدمه غيرك.</small></span>
-        </label>
+        <p className="gate__hint">يبقى الدخول محفوظاً على هذا الجهاز حتى تضغط «خروج»، لتعمل الاستمارة في الميدان بلا إنترنت.</p>
         {error && <p className="gate__err">{error}</p>}
         <button type="submit" className="survey__navbtn survey__navbtn--primary gate__submit" disabled={busy}>
           {busy ? 'جارٍ التحقق…' : 'دخول'}
@@ -172,13 +208,15 @@ export default function FillPage({ surveyId }) {
   const [sendError, setSendError] = useState('');
   const [reload, setReload] = useState(0);
   const [who, setWho] = useState('');
+  const [token] = useState(linkToken);
+  const [respondent, setRespondent] = useState(savedName);
 
   useEffect(() => {
     let alive = true;
-    getPublicSurvey(surveyId).then(async (res) => {
+    getPublicSurvey(surveyId, token).then(async (res) => {
       if (!alive) return;
       /* بلا شبكة واستمارة تتطلب الدخول: لا تُفتح النسخة المحفوظة إلا بجلسة على الجهاز */
-      if (res.fromCache && res.requiresLogin && !(await getSession())) { setState({ status: 'login-offline' }); return; }
+      if (res.fromCache && res.requiresLogin && !res.publicLink && !hasStoredSession()) { setState({ status: 'login-offline' }); return; }
       if (res.requiresLogin) getMyRole().then((m) => alive && setWho(m?.displayName || m?.username || '')).catch(() => {});
       setState(res);
       if (res.fromCache && res.cached?.definition) {
@@ -190,7 +228,7 @@ export default function FillPage({ surveyId }) {
       }
     });
     return () => { alive = false; };
-  }, [surveyId, reload]);
+  }, [surveyId, reload, token]);
 
   const logout = async () => { await signOut(); setDefinition(null); setWho(''); setState({ status: 'loading' }); setReload((n) => n + 1); };
 
@@ -220,6 +258,13 @@ export default function FillPage({ surveyId }) {
         body="حسابك لا يملك صلاحية تعبئة هذه الاستمارة. اطلب من مدير المنصة إسنادها إليك، أو ادخل بحساب آخر.">
         <button type="button" className="survey__navbtn" onClick={logout}>الدخول بحساب آخر</button>
       </Message>
+    );
+  }
+
+  if (state.status === 'link-revoked') {
+    return (
+      <Message icon="lock" title="هذا الرابط لم يعد صالحاً"
+        body="أُلغي هذا الرابط العام. اطلب الرابط الجديد من مدير المنصة. ما حفظته على هذا الجهاز ولم يُرسل يبقى محفوظاً." />
     );
   }
 
@@ -309,10 +354,23 @@ export default function FillPage({ surveyId }) {
     );
   }
 
+  if (state.publicLink && !respondent) {
+    return <NameGate title={state.survey?.title || definition?.title || 'استمارة'} onDone={setRespondent} />;
+  }
+
+  const ready = Boolean(cachedSurvey(surveyId)) && typeof navigator !== 'undefined' && Boolean(navigator.serviceWorker?.controller);
+
   return (
     <div className="fillpage">
       <div className="shell fillpage__top">
         {state.projectName && <span className="fillpage__crumb">{state.projectName}</span>}
+        {state.publicLink && respondent && (
+          <span className="fillpage__who">
+            <Icon name="staff" className="fillpage__whoicon" />{respondent}
+            <button type="button" onClick={() => setRespondent('')}>تغيير</button>
+          </span>
+        )}
+        {ready && online && <span className="fillpage__ready">✓ جاهزة للعمل بلا إنترنت</span>}
         {who && (
           <span className="fillpage__who">
             <Icon name="staff" className="fillpage__whoicon" />{who}
@@ -332,15 +390,15 @@ export default function FillPage({ surveyId }) {
         onSubmit={async (answers, timing) => {
           setSendError('');
           const clientId = outbox.newClientId();
-          const meta = { ...timing, device: outbox.deviceLabel() };
+          const meta = { ...timing, device: outbox.deviceLabel(), ...(state.publicLink ? { respondent } : {}) };
           try {
-            await createResponse(surveyId, answers, { source: 'link', password, meta, clientId });
+            await createResponse(surveyId, answers, { source: 'link', password, meta, clientId, token });
             setDone('sent');
           } catch (err) {
             if (outbox.isNetworkError(err) || err.auth) {
               /* بلا شبكة: نحفظ على الجهاز بنفس المعرّف، فإعادة الإرسال لا تكرر */
               await outbox.enqueue({
-                clientId, surveyId, answers, password,
+                clientId, surveyId, answers, password, token,
                 meta: { ...meta, offline: true, queuedAt: new Date().toISOString() },
               });
               if (err.auth) { setState({ status: 'login', survey: { title: definition.title } }); return; }

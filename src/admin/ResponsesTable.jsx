@@ -52,13 +52,14 @@ function exportCsv(rows, questions, areas, filename) {
     const s = String(v ?? '');
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const head = ['المعرّف', 'الحالة', 'تاريخ الإرسال', 'عُدّلت', ...questions.map((q) => q.label || q.name)];
+  const head = ['المعرّف', 'الحالة', 'تاريخ الإرسال', 'المُرسل', 'عُدّلت', ...questions.map((q) => q.label || q.name)];
   const lines = [head.map(esc).join(',')];
   for (const r of rows) {
     lines.push([
       r.id,
       RESPONSE_STATUS[r.status],
       new Date(r.submittedAt).toISOString().slice(0, 16).replace('T', ' '),
+      r.meta?.submittedBy || '',
       r.edited ? 'نعم' : '',
       ...questions.map((q) => display(r.answers[q.name], q, areas)),
     ].map(esc).join(','));
@@ -147,6 +148,9 @@ function ReviewDrawer({
 
         <div className="drawer__meta">
           <span>أُرسلت {new Date(response.submittedAt).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+          {response.meta?.submittedBy && (
+            <span>المُرسل: <b>{response.meta.submittedBy}</b>{response.meta.via === 'public-link' ? ' (رابط عام)' : ''}</span>
+          )}
           <span>{answered} من {questions.length} سؤالاً مُجاب</span>
           {response.edited && <span className="drawer__edited">عُدّلت بعد الإرسال</span>}
         </div>
@@ -418,6 +422,7 @@ export default function ResponsesTable({
                   <td><span className={`status status--${r.status}`}>{RESPONSE_STATUS[r.status]}</span></td>
                   <td className="results__date">
                     {new Date(r.submittedAt).toLocaleDateString('en-GB')}
+                    {r.meta?.submittedBy && <small className="rtable__by">{r.meta.submittedBy}</small>}
                     {r.edited && <span className="rtable__edited" title="عُدّلت بعد الإرسال">●</span>}
                   </td>
                   <td className="results__date">

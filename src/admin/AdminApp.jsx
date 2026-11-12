@@ -429,6 +429,12 @@ function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'bu
           {tab === 'share' && (
             <SharePanel
               survey={surveys.find((s) => s.id === activeSurvey)}
+              onPublicLink={async (enable) => {
+                await store.setPublicToken(activeSurvey, enable);
+                await load();
+                setNotice(enable ? 'وُلّد رابط عام جديد — الرابط السابق (إن وُجد) لم يعد يعمل' : 'أُلغي الرابط العام');
+                setTimeout(() => setNotice(''), 3000);
+              }}
               onUpdate={async (cfg) => {
                 await store.openSurveyLink(activeSurvey, cfg);
                 await load();

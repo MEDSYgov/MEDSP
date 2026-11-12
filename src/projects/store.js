@@ -47,6 +47,7 @@ const mapSurvey = (r) => r && ({
   open: r.is_open,
   hasPassword: Boolean(r.has_password),
   requiresLogin: Boolean(r.requires_login),
+  publicToken: r.public_token || null,
   closesAt: r.closes_at || '',
   createdAt: r.created_at,
   updatedAt: r.updated_at,
@@ -68,7 +69,7 @@ const mapResponse = (r) => r && ({
 });
 
 /* بصمة كلمة المرور لا تُقرأ أبداً للواجهة — فقط هل هي موجودة */
-const SURVEY_COLS = 'id, project_id, title, description, pages, report, is_open, closes_at, created_at, updated_at, has_password, requires_login';
+const SURVEY_COLS = 'id, project_id, title, description, pages, report, is_open, closes_at, created_at, updated_at, has_password, requires_login, public_token';
 
 const withFlag = (row) => row;
 
@@ -285,6 +286,13 @@ export async function deleteSurvey(id) {
   (bcrypt) — لا تُحفظ نصاً ولا تُقرأ مرة أخرى.
   password: undefined = لا تغيير، '' = إزالة، نص = تعيين
 */
+/* الرابط العام (بلا تسجيل دخول، بالاسم والكنية): توليد رمز جديد أو إلغاؤه */
+export async function setPublicToken(id, enable = true) {
+  const { data, error } = await supabase.rpc('set_public_token', { p_survey: id, p_enable: enable });
+  fail(error, 'تعذّر تحديث الرابط العام');
+  return data || null;
+}
+
 export async function openSurveyLink(id, { open, closesAt, password, requiresLogin }) {
   await updateSurvey(id, { open, closesAt, ...(requiresLogin === undefined ? {} : { requiresLogin }) });
   if (password !== undefined) {
@@ -313,13 +321,24 @@ export function cachedSurvey(id) {
 }
 
 const looksOffline = (error) => (typeof navigator !== 'undefined' && navigator.onLine === false)
-  || /fetch|network|Load failed/i.test(error?.message || '');
+  || /fetch|network|Load failed|timeout|AuthRetryable/i.test(`${error?.message || ''} ${error?.name || ''}`);
 
-export async function getPublicSurvey(id) {
+export async function getPublicSurvey(id, token = null) {
   if (!isValidId(id)) return { status: 'missing' };
   let data; let error;
+  /*
+    في الميدان: بلا شبكة أو بشبكة ضعيفة لا ننتظر — النسخة المحفوظة تُفتح فوراً.
+    (مع جلسة منتهية يحاول العميل تجديدها قبل الطلب، وقد يطول ذلك بلا إنترنت.)
+  */
+  const offlineNow = typeof navigator !== 'undefined' && navigator.onLine === false;
+  if (offlineNow && cachedSurvey(id)) {
+    const cached = cachedSurvey(id);
+    return { ...cached.state, fromCache: true, cached };
+  }
   try {
-    ({ data, error } = await supabase.rpc('get_public_survey', { p_survey: id }));
+    const call = supabase.rpc('get_public_survey', token ? { p_survey: id, p_token: token } : { p_survey: id });
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('network timeout')), cachedSurvey(id) ? 8000 : 25000));
+    ({ data, error } = await Promise.race([call, timeout]));
   } catch (e) { error = e; }
   if (error) {
     if (looksOffline(error)) {
@@ -368,6 +387,7 @@ export async function createResponse(surveyId, answers, opts = {}) {
     p_source: opts.source || 'link',
     p_meta: opts.meta || {},
     p_client_id: opts.clientId ?? null,
+    ...(opts.token ? { p_token: opts.token } : {}),
   });
   if (error && looksOffline(error)) {
     const err = new Error('لا يوجد اتصال بالإنترنت');
