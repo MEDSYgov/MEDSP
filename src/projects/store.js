@@ -9,7 +9,7 @@
   يبقى هذا الملف كما هو ويتغير عنوان الاتصال فقط.
 */
 
-import { supabase, REMEMBER_KEY } from './supabase';
+import { supabase, anonSupabase, REMEMBER_KEY } from './supabase';
 
 /* ---------- أدوات ---------- */
 
@@ -338,7 +338,9 @@ export async function getPublicSurvey(id, token = null) {
     return { ...cached.state, fromCache: true, cached };
   }
   try {
-    const call = supabase.rpc('get_public_survey', token ? { p_survey: id, p_token: token } : { p_survey: id });
+    const call = token
+      ? anonSupabase.rpc('get_public_survey', { p_survey: id, p_token: token })
+      : supabase.rpc('get_public_survey', { p_survey: id });
     const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('network timeout')), cachedSurvey(id) ? 8000 : 25000));
     ({ data, error } = await Promise.race([call, timeout]));
   } catch (e) { error = e; }
@@ -401,8 +403,21 @@ export async function listResponses({ surveyId, projectId, status } = {}) {
   return data.map(mapResponse);
 }
 
+/*
+  تصنيف أخطاء الإرسال:
+    - شبكة/مهلة            ← تبقى في الصادر وتُرسل لاحقاً
+    - دخول منتهٍ/غير صالح   ← تبقى بانتظار الدخول (رابط الحسابات)
+    - خطأ مؤقت في السيرفر  ← تبقى وتُعاد تلقائياً (retry)
+    - رفض صريح (رسالة عربية من القاعدة) ← «مرفوضة» مع السبب، وتبقى قابلة لإعادة المحاولة
+*/
+function describeError(error) {
+  const parts = [error?.code, error?.status, error?.message, error?.hint].filter(Boolean);
+  return parts.join(' — ').slice(0, 200);
+}
+
 export async function createResponse(surveyId, answers, opts = {}) {
-  const { data, error } = await supabase.rpc('submit_response', {
+  const client = opts.token ? anonSupabase : supabase;
+  const { data, error } = await client.rpc('submit_response', {
     p_survey: surveyId,
     p_answers: answers,
     p_password: opts.password ?? null,
@@ -413,6 +428,18 @@ export async function createResponse(surveyId, answers, opts = {}) {
   });
   if (error && looksOffline(error)) {
     const err = new Error('لا يوجد اتصال بالإنترنت');
+    err.cause = error;
+    throw err;
+  }
+  if (error && !opts.token && /JWT|jwt|401|PGRST30/.test(`${error.code || ''} ${error.message || ''} ${error.status || ''}`)) {
+    const err = new Error('انتهت صلاحية الدخول على هذا الجهاز — ادخل من جديد لتُرسل الاستمارة');
+    err.auth = true;
+    throw err;
+  }
+  if (error && !/[\u0600-\u06FF]/.test(error.message || '')) {
+    /* خطأ تقني غير متوقع من السيرفر: لا تُعلَّم مرفوضة نهائياً، وتُعاد لاحقاً */
+    const err = new Error(`خطأ مؤقت في السيرفر (${describeError(error)})`);
+    err.retry = true;
     err.cause = error;
     throw err;
   }

@@ -61,3 +61,12 @@ export const supabase = createClient(URL, KEY, {
 });
 
 export default supabase;
+
+/*
+  عميل «مجهول» للرابط العام: لا يحمل أي جلسة دخول مخزّنة على الجهاز.
+  الرابط العام لا يحتاج دخولاً، فلا يجوز أن يتعطل الإرسال لأن على الهاتف
+  دخولاً قديماً انتهت صلاحيته بعد ساعات في الميدان.
+*/
+export const anonSupabase = createClient(URL, KEY, {
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'medsp-anon' },
+});
