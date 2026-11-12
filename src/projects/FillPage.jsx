@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getPublicSurvey, unlockSurvey, createResponse, cacheSurvey, cachedSurvey, signIn, signOut, getMyRole, responseStatuses } from './store';
 import { hasStoredSession } from './supabase';
 import * as outbox from './outbox';
+import * as drafts from '../survey/drafts';
 import SurveyPage from '../survey/SurveyPage';
 import Icon from '../components/Icon';
 
@@ -84,6 +85,34 @@ function SentList({ surveyId, online, tick }) {
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+/* ---------------- المسودات (حفظ والمتابعة لاحقاً) ---------------- */
+
+function DraftList({ list, onOpen, onRemove }) {
+  if (!list.length) return null;
+  return (
+    <div className="drafts">
+      <b className="drafts__head">مسودات محفوظة على هذا الجهاز ({list.length})</b>
+      <ul>
+        {list.map((d) => (
+          <li key={d.id}>
+            <span className="drafts__text">
+              <strong>{d.label}</strong>
+              <small>
+                <span>آخر تعديل <bdi dir="ltr">{new Date(d.updatedAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</bdi></span>
+                <span>الصفحة {(d.page || 0) + 1}</span>
+                <span>{d.count} إجابة</span>
+              </small>
+            </span>
+            <button type="button" className="survey__navbtn survey__navbtn--primary drafts__go" onClick={() => onOpen(d)}>متابعة</button>
+            <button type="button" className="q-btn q-btn--sm q-btn--danger"
+              onClick={() => { if (window.confirm('حذف هذه المسودة نهائياً؟')) onRemove(d.id); }}>حذف</button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -261,6 +290,34 @@ export default function FillPage({ surveyId }) {
   const [reload, setReload] = useState(0);
   const [who, setWho] = useState('');
   const [token] = useState(linkToken);
+  /* المسودة الجارية: معرّفها يُنشأ عند أول إدخال؛ وتغيير «fillKey» يفتح استمارة جديدة أو مسودة */
+  const [draftList, setDraftList] = useState([]);
+  const [openDraft, setOpenDraft] = useState(null);
+  const [fillKey, setFillKey] = useState('new-0');
+  const [savedNote, setSavedNote] = useState('');
+  const draftId = useRef(null);
+  const draftStart = useRef(null);
+  const refreshDrafts = useCallback(() => drafts.listDrafts(surveyId).then(setDraftList).catch(() => setDraftList([])), [surveyId]);
+  useEffect(() => { refreshDrafts(); }, [refreshDrafts]);
+  const startFill = (d = null) => {
+    draftId.current = d?.id || null;
+    draftStart.current = d?.startedAt || null;
+    setOpenDraft(d);
+    setFillKey(d ? `d-${d.id}-${Date.now()}` : `new-${Date.now()}`);
+    window.scrollTo(0, 0);
+  };
+  const storeDraft = async (snap) => {
+    if (!draftId.current) { draftId.current = drafts.newDraftId(); draftStart.current = new Date().toISOString(); }
+    const count = drafts.answeredCount(snap.answers);
+    if (!count) return;
+    await drafts.saveDraft({ id: draftId.current, surveyId, answers: snap.answers, page: snap.page,
+      startedAt: draftStart.current, label: drafts.draftLabel(snap.answers), count });
+    refreshDrafts();
+  };
+  const dropCurrentDraft = async () => {
+    if (draftId.current) { await drafts.removeDraft(draftId.current).catch(() => {}); draftId.current = null; }
+    refreshDrafts();
+  };
   const [respondent, setRespondent] = useState(savedName);
 
   useEffect(() => {
@@ -398,7 +455,7 @@ export default function FillPage({ surveyId }) {
           </p>
           <Outbox surveyId={surveyId} online={online} />
           <button type="button" className="survey__navbtn survey__navbtn--primary"
-            onClick={() => { setDone(null); window.scrollTo(0, 0); }}>
+            onClick={() => { setDone(null); startFill(null); }}>
             تعبئة استمارة أخرى
           </button>
         </div>
@@ -435,10 +492,23 @@ export default function FillPage({ surveyId }) {
       </div>
       <div className="shell"><Outbox surveyId={surveyId} online={online} /><SentList surveyId={surveyId} online={online} /></div>
       {sendError && <div className="shell"><p className="share__warn">{sendError}</p></div>}
+      {savedNote && <div className="shell"><p className="drafts__saved">{savedNote}</p></div>}
+      <div className="shell">
+        <DraftList list={draftList.filter((d) => d.id !== draftId.current)} onOpen={(d) => { setSavedNote(''); startFill(d); }}
+          onRemove={async (id) => { await drafts.removeDraft(id); refreshDrafts(); }} />
+      </div>
       <SurveyPage
+        key={fillKey}
         definition={definition}
         submitLabel="إرسال الإجابة"
         hideReview
+        draft={openDraft}
+        onDraftChange={storeDraft}
+        onSaveLater={async (snap) => {
+          await storeDraft(snap);
+          setSavedNote(draftId.current ? 'حُفظت المسودة على هذا الجهاز. تجدها في «المسودات المحفوظة» لتتابعها متى شئت.' : 'لا شيء لحفظه بعد.');
+          startFill(null);
+        }}
         onSubmit={async (answers, timing) => {
           setSendError('');
           const clientId = outbox.newClientId();
@@ -446,6 +516,7 @@ export default function FillPage({ surveyId }) {
           const meta = { ...timing, device: outbox.deviceLabel(), ...(state.publicLink ? { respondent } : {}) };
           try {
             await createResponse(surveyId, answers, { source: 'link', password, meta, clientId, token });
+            await dropCurrentDraft();
             setDone('sent');
           } catch (err) {
             if (outbox.isNetworkError(err) || err.auth) {
@@ -455,6 +526,7 @@ export default function FillPage({ surveyId }) {
                 meta: { ...meta, offline: true, queuedAt: new Date().toISOString() },
               });
               if (err.auth) { setState({ status: 'login', survey: { title: definition.title } }); return; }
+              await dropCurrentDraft();
               setDone('queued');
             } else {
               setSendError(`${err.message}. إجاباتك ما زالت هنا — حاول الإرسال مجدداً.`);
