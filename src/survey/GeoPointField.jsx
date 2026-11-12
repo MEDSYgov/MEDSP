@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import Icon from '../components/Icon';
 
 /*
@@ -38,40 +38,69 @@ export default function GeoPointField({ node, value, onChange }) {
     setMode(null);
   };
 
+  /*
+    تحديد الموقع بلا أي مهلة: يبقى الجهاز يبحث عن الإشارة حتى يجدها، ويحسّن الدقة
+    باستمرار (تُحدَّث النقطة مع كل قراءة أدق)، ويتوقف تلقائياً عند دقة جيدة
+    أو حين يضغط المستخدم «إيقاف». لا تظهر رسالة «انتهت المهلة» أبداً.
+  */
+  const watch = useRef(null);
+  const best = useRef(null);
+  const stopWatch = () => {
+    if (watch.current != null) navigator.geolocation.clearWatch(watch.current);
+    watch.current = null;
+  };
+  useEffect(() => stopWatch, []);
+
   const capture = () => {
     if (!navigator.geolocation) {
       setError('هذا الجهاز لا يدعم تحديد الموقع');
       setStatus('error');
       return;
     }
+    stopWatch();
+    best.current = null;
     setStatus('busy');
     setError('');
-
-    navigator.geolocation.getCurrentPosition(
+    setMode(null);
+    const target = node.minAccuracy || 20;
+    watch.current = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude, accuracy, altitude } = pos.coords;
-        onChange({
+        const acc = accuracy ? Math.round(accuracy) : null;
+        if (best.current && acc != null && best.current.accuracy != null && acc > best.current.accuracy) return;
+        best.current = {
           lat: Number(latitude.toFixed(6)),
           lng: Number(longitude.toFixed(6)),
-          accuracy: accuracy ? Math.round(accuracy) : null,
+          accuracy: acc,
           source: 'gps',
           altitude: altitude != null ? Math.round(altitude) : null,
           at: new Date().toISOString(),
-        });
-        setStatus('ready');
+        };
+        onChange(best.current);
+        setError('');
+        if (acc != null && acc <= target) { stopWatch(); setStatus('ready'); }
       },
       (err) => {
+        /*
+          لا مهلة ولا توقف: «لا إشارة الآن» (2) أو انتهاء مهلة داخلية (3) مؤقتان في الميدان،
+          فيستمر البحث بصمت. يتوقف فقط إن رُفض إذن الموقع (1).
+        */
+        if (err.code !== 1) {
+          if (!best.current) setError('لا توجد إشارة بعد — يستمر البحث تلقائياً. اقترب من مكان مكشوف، أو اكتب الإحداثيات.');
+          return;
+        }
+        stopWatch();
         const messages = {
-          1: 'رُفض إذن الوصول للموقع. فعّله من إعدادات المتصفح.',
-          2: 'تعذّر تحديد الموقع. تأكد من تفعيل GPS.',
-          3: 'انتهت المهلة قبل تحديد الموقع. حاول في مكان مكشوف.',
+          1: 'رُفض إذن الوصول للموقع. فعّله من إعدادات المتصفح، أو اكتب الإحداثيات أو اخترها من الخريطة.',
+          2: 'خدمة الموقع غير متاحة. تأكد من تفعيل GPS في الهاتف، أو اكتب الإحداثيات أو اخترها من الخريطة.',
         };
         setError(messages[err.code] || 'تعذّر تحديد الموقع');
-        setStatus('error');
+        setStatus(best.current ? 'ready' : 'error');
       },
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: Infinity },
     );
   };
+  const stopCapture = () => { stopWatch(); setStatus(best.current ? 'ready' : 'idle'); };
 
   /* دقة أسوأ من الحد المطلوب تُعرض كتحذير، لا كخطأ يمنع المتابعة */
   const poor = value?.accuracy && node.minAccuracy && value.accuracy > node.minAccuracy;
@@ -102,14 +131,17 @@ export default function GeoPointField({ node, value, onChange }) {
               </div>
             )}
           </div>
-          {poor && (
+          {status === 'busy' && (
+            <p className="q-hint">يستمر تحسين الدقة تلقائياً دون حد زمني، ويتوقف وحده عند دقة جيدة. يمكنك المتابعة الآن أو الإيقاف.</p>
+          )}
+          {poor && status !== 'busy' && (
             <p className="q-warn">
               الدقة أقل من المطلوب (±{node.minAccuracy} م). حاول في مكان مكشوف لنتيجة أدق.
             </p>
           )}
           <div className="q-geo__actions">
-            <button type="button" className="q-btn q-btn--ghost" onClick={capture} disabled={status === 'busy'}>
-              {status === 'busy' ? 'جارٍ التحديد…' : 'إعادة التحديد بالـ GPS'}
+            <button type="button" className="q-btn q-btn--ghost" onClick={status === 'busy' ? stopCapture : capture}>
+              {status === 'busy' ? 'إيقاف تحسين الدقة' : 'إعادة التحديد بالـ GPS'}
             </button>
             <button type="button" className="q-btn q-btn--ghost" onClick={() => setMode(mode === 'map' ? null : 'map')}>تعديل على الخريطة</button>
             <button type="button" className="q-btn q-btn--danger" onClick={() => { onChange(null); setStatus('idle'); setMode(null); }}>
@@ -119,9 +151,9 @@ export default function GeoPointField({ node, value, onChange }) {
         </div>
       ) : (
         <div className="q-geo__modes">
-          <button type="button" className="q-geo__capture" onClick={capture} disabled={status === 'busy'}>
+          <button type="button" className="q-geo__capture" onClick={status === 'busy' ? stopCapture : capture}>
             <Icon name="pin" className="q-geo__icon" />
-            <span>{status === 'busy' ? 'جارٍ تحديد الموقع…' : 'تحديد موقعي الحالي'}</span>
+            <span>{status === 'busy' ? 'جارٍ البحث عن إشارة GPS… (اضغط للإيقاف)' : 'تحديد موقعي الحالي'}</span>
           </button>
           <div className="q-geo__alt">
             <button type="button" className={`q-btn q-btn--ghost${mode === 'manual' ? ' is-on' : ''}`} onClick={() => { setMode(mode === 'manual' ? null : 'manual'); setError(''); }}>كتابة الإحداثيات</button>
