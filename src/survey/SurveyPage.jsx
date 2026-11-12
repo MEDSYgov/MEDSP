@@ -133,26 +133,27 @@ export default function SurveyPage({ definition, onSubmit, submitLabel, hideRevi
           السابق
         </button>
 
-        {onSaveLater && (
-          <button type="button" className="survey__navbtn survey__navbtn--save"
-            onClick={() => onSaveLater({ ...snap.current, startedAt: startedAt.current.toISOString() })}>
-            حفظ والمتابعة لاحقاً
-          </button>
-        )}
-
-        {isLast ? (
-          <button type="button" className="survey__navbtn survey__navbtn--primary" onClick={submit}>
-            {submitLabel || 'إنهاء ومراجعة'}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="survey__navbtn survey__navbtn--primary"
-            onClick={survey.next}
-          >
-            التالي
-          </button>
-        )}
+        <div className="survey__navend">
+          {onSaveLater && (
+            <button type="button" className="survey__navbtn survey__navbtn--save"
+              onClick={() => onSaveLater({ ...snap.current, startedAt: startedAt.current.toISOString() })}>
+              حفظ
+            </button>
+          )}
+          {isLast ? (
+            <button type="button" className="survey__navbtn survey__navbtn--primary" onClick={submit}>
+              {submitLabel || 'إنهاء ومراجعة'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="survey__navbtn survey__navbtn--primary"
+              onClick={survey.next}
+            >
+              التالي
+            </button>
+          )}
+        </div>
       </div>
 
       {survey.expressionErrors.length > 0 && (
