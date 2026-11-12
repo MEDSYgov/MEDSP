@@ -850,9 +850,12 @@ function buildAdminAreas() {
   const wb = XLSX.readFile(path.join(dataDir, REF_FILE));
   const rows = (n) => XLSX.utils.sheet_to_json(wb.Sheets[n]);
   const districts = rows('syr_admin2').map((r) => [clean(r.adm2_pcode), clean(r.adm2_name1) || clean(r.adm2_name), clean(r.adm1_pcode)]).filter((x) => x[0]);
-  const subs = rows('syr_admin3').map((r) => [clean(r.adm3_pcode), clean(r.adm3_name1) || clean(r.adm3_name), clean(r.adm2_pcode)]).filter((x) => x[0]);
+  /* إحداثيات تقريبية (مركز الناحية/القرية) — يُستعمل حين تُترك نقطة الموقع فارغة في الاستمارة */
+  const r4 = (v) => (Number.isFinite(Number(v)) && Number(v) ? Math.round(Number(v) * 1e4) / 1e4 : null);
+  const subPts = new Map(rows('syr_adminpoints').filter((r) => Number(r.admin_level) === 3).map((r) => [clean(r.adm3_pcode), [r4(r.y_coord), r4(r.x_coord)]]));
+  const subs = rows('syr_admin3').map((r) => [clean(r.adm3_pcode), clean(r.adm3_name1) || clean(r.adm3_name), clean(r.adm2_pcode), ...(subPts.get(clean(r.adm3_pcode)) || [])]).filter((x) => x[0]);
   const seen = new Set();
-  const communities = rows('syr_populatedplaces').map((r) => [clean(r.pcode), clean(r.featurename_ar) || clean(r.featurename_en), clean(r.adm3_pcode)])
+  const communities = rows('syr_populatedplaces').map((r) => [clean(r.pcode), clean(r.featurename_ar) || clean(r.featurename_en), clean(r.adm3_pcode), r4(r.point_y), r4(r.point_x)])
     .filter((x) => x[0] && x[2] && !seen.has(x[0]) && seen.add(x[0]));
   fs.writeFileSync(outPath('admin-areas.json'), JSON.stringify({ districts, subdistricts: subs, communities }));
   console.log(`  ✓ admin-areas.json (${districts.length} منطقة، ${subs.length} ناحية، ${communities.length} قرية/بلدة)`);

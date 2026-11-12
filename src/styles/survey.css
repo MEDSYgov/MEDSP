@@ -873,3 +873,18 @@
 .q-calc__value { font-size: 1.3rem; font-weight: 900; color: var(--accent-text); font-variant-numeric: tabular-nums; }
 .q-calc__unit { font-size: 0.8rem; color: var(--ink-faint); }
 .q__hint--wait { font-style: italic; }
+
+/* الموقع: ثلاث طرق (GPS، كتابة، خريطة) */
+.q-geo__modes { display: grid; gap: 10px; }
+.q-geo__alt { display: flex; flex-wrap: wrap; gap: 8px; }
+.q-geo__alt .q-btn { flex: 1 1 140px; }
+.q-geo__alt .q-btn.is-on { border-color: var(--accent, #2f9e74); color: var(--ink); }
+.q-geo__manual { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; gap: 10px; align-items: end; margin-top: 12px; }
+.q-geo__manual label { display: grid; gap: 4px; font-size: 0.86rem; color: var(--ink-soft); }
+.q-geo__mapwrap { display: grid; gap: 10px; margin-top: 12px; }
+.q-geo__map { height: 340px; border-radius: 14px; overflow: hidden; border: 1px solid var(--edge-strong); background: #1d2b28; }
+@media (max-width: 640px) {
+  .q-geo__manual { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .q-geo__manual .q-btn { grid-column: 1 / -1; }
+  .q-geo__map { height: 300px; }
+}
