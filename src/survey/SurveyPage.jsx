@@ -31,10 +31,35 @@ function ReviewPanel({ data, onBack, onAgain }) {
   );
 }
 
-export default function SurveyPage({ definition, onSubmit, submitLabel, hideReview }) {
+export default function SurveyPage({ definition, onSubmit, submitLabel, hideReview, draft = null, onDraftChange, onSaveLater }) {
   /* إعادة التصفير تُنجَز بتغيير المفتاح، فتعود الحالة نظيفة تماماً */
   const [round, setRound] = useState(0);
-  const survey = useSurvey(definition, { round });
+  const survey = useSurvey(definition, { round, initialAnswers: draft?.answers, initialPage: draft?.page });
+
+  /*
+    الحفظ التلقائي للمسودة: بعد كل تغيير (بمهلة قصيرة)، ما دام المستخدم أدخل شيئاً.
+    يحمي الإجابات من إغلاق المتصفح أو انطفاء الهاتف.
+  */
+  const touchedOnce = useRef(Boolean(draft));
+  const firstRender = useRef(true);
+  const snap = useRef(null);
+  snap.current = { answers: survey.rawAnswers, page: survey.page };
+  useEffect(() => {
+    if (firstRender.current) { firstRender.current = false; return undefined; }
+    touchedOnce.current = true;
+    if (!onDraftChange) return undefined;
+    const t = setTimeout(() => onDraftChange(snap.current), 700);
+    return () => clearTimeout(t);
+  }, [survey.rawAnswers, survey.page]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* عند مغادرة الصفحة أو إخفائها (الانتقال لتطبيق آخر) يُحفظ فوراً */
+  useEffect(() => {
+    if (!onDraftChange) return undefined;
+    const flush = () => { if (touchedOnce.current) onDraftChange(snap.current); };
+    const vis = () => { if (document.visibilityState === 'hidden') flush(); };
+    document.addEventListener('visibilitychange', vis);
+    window.addEventListener('pagehide', flush);
+    return () => { document.removeEventListener('visibilitychange', vis); window.removeEventListener('pagehide', flush); };
+  }, [onDraftChange]);
   const [submitted, setSubmitted] = useState(null);
 
   /*
@@ -42,8 +67,8 @@ export default function SurveyPage({ definition, onSubmit, submitLabel, hideRevi
     تكشف للمشرف الاستمارات المعبّأة بسرعة غير معقولة.
     تبدأ من جديد مع كل استمارة جديدة.
   */
-  const startedAt = useRef(new Date());
-  useEffect(() => { startedAt.current = new Date(); }, [round]);
+  const startedAt = useRef(draft?.startedAt ? new Date(draft.startedAt) : new Date());
+  useEffect(() => { if (round) startedAt.current = new Date(); }, [round]);
 
   const isLast = survey.page === survey.pages.length - 1;
 
@@ -107,6 +132,13 @@ export default function SurveyPage({ definition, onSubmit, submitLabel, hideRevi
         >
           السابق
         </button>
+
+        {onSaveLater && (
+          <button type="button" className="survey__navbtn survey__navbtn--save"
+            onClick={() => onSaveLater({ ...snap.current, startedAt: startedAt.current.toISOString() })}>
+            حفظ والمتابعة لاحقاً
+          </button>
+        )}
 
         {isLast ? (
           <button type="button" className="survey__navbtn survey__navbtn--primary" onClick={submit}>
