@@ -186,6 +186,12 @@ function Outbox({ surveyId, online }) {
 
   /* إرسال تلقائي: عند فتح الصفحة، وعند عودة الشبكة، وكل نصف دقيقة ما دام هناك انتظار */
   useEffect(() => { if (online) flushNow(); }, [online, flushNow]);
+  /* إعادة محاولة دورية ما دام الجهاز متصلاً (لعطل مؤقت في السيرفر) */
+  useEffect(() => {
+    if (!online) return undefined;
+    const t = setInterval(() => { flushNow(); }, 60000);
+    return () => clearInterval(t);
+  }, [online, flushNow]);
   const pending = items.filter((i) => !i.rejected);
   useEffect(() => {
     if (!online || pending.length === 0) return undefined;
@@ -222,9 +228,13 @@ function Outbox({ surveyId, online }) {
       {rejected.map((i) => (
         <div className="outbox__row outbox__row--bad" key={i.clientId}>
           <span className="outbox__text">
-            <strong>استمارة رفضها الخادم</strong>
-            <span>{i.lastError}. حُفظت في {new Date(i.queuedAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}.</span>
+            <strong>لم تُقبل هذه الاستمارة — ما زالت محفوظة على الجهاز</strong>
+            <span>السبب: {i.lastError}. حُفظت في {new Date(i.queuedAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}.</span>
           </span>
+          <button type="button" className="q-btn q-btn--sm"
+            onClick={async () => { await outbox.retry(i.clientId); outbox.flush(send); }}>
+            إعادة المحاولة
+          </button>
           <button type="button" className="q-btn q-btn--sm q-btn--danger"
             onClick={() => { if (window.confirm('حذف هذه الاستمارة من الجهاز نهائياً؟')) outbox.remove(i.clientId); }}>
             حذف
@@ -450,7 +460,7 @@ export default function FillPage({ surveyId }) {
           <h1>{queued ? 'حُفظت على هذا الجهاز' : 'وصلت إجابتك'}</h1>
           <p>
             {queued
-              ? 'لا يوجد اتصال الآن، فحُفظت الاستمارة على الهاتف. ستُرسل تلقائياً عند عودة الشبكة — افتح هذا الرابط حينها إن أغلقته.'
+              ? (online ? 'تعذّر الوصول إلى السيرفر الآن، فحُفظت الاستمارة على الهاتف. ستُعاد المحاولة تلقائياً كل دقيقة — أبقِ الصفحة مفتوحة أو افتح الرابط لاحقاً.' : 'لا يوجد اتصال الآن، فحُفظت الاستمارة على الهاتف. ستُرسل تلقائياً عند عودة الشبكة — افتح هذا الرابط حينها إن أغلقته.')
               : 'شكراً لك. ستُراجع البيانات قبل اعتمادها.'}
           </p>
           <Outbox surveyId={surveyId} online={online} />
@@ -519,7 +529,7 @@ export default function FillPage({ surveyId }) {
             await dropCurrentDraft();
             setDone('sent');
           } catch (err) {
-            if (outbox.isNetworkError(err) || err.auth) {
+            if (outbox.isNetworkError(err) || err.auth || err.retry) {
               /* بلا شبكة: نحفظ على الجهاز بنفس المعرّف، فإعادة الإرسال لا تكرر */
               await outbox.enqueue({
                 clientId, surveyId, answers, password, token,
