@@ -8,12 +8,12 @@ import { getData } from '../data/api';
   وحتى لو ظهرت لغيره، الدوال على الخادم ترفض أي طلب من غير السوبر أدمن.
 */
 
-const ROLE = { super_admin: 'المدير العام', admin: 'مدير المنصة', viewer: 'مشاهد', reviewer: 'مراجع استبيان', collector: 'جامع بيانات' };
+const ROLE = { super_admin: 'المدير العام', admin: 'مدير المنصة', viewer: 'مشاهد', reviewer: 'معتمد نهائي', collector: 'أخصائي' };
 const ROLE_HINT = {
   admin: 'يدير المشاريع والاستبيانات والبيانات والتقارير، دون إدارة الحسابات.',
   viewer: 'يشاهد الأرقام فقط. اترك الأقسام كلها لمشاهدة كاملة، أو اختر أقساماً محددة.',
-  reviewer: 'يشاهد الأقسام المحددة ويراجع الاستبيانات المسندة إليه. مع جهة: يؤكد إجابات جهته فقط. بلا جهة: يعتمد كل الإجابات.',
-  collector: 'لا يرى الأرقام؛ يعبّئ الاستبيانات المسندة إليه فقط.',
+  reviewer: 'لا يرى المنصة. يعتمد نهائياً ما اعتمده الأخصائي فتدخل المنصة، أو يرفضه فيعود للأخصائي، ويتراجع عن الاعتماد عند الخطأ.',
+  collector: 'لا يرى المنصة. يراجع إجابات الاستبيانات المسندة إليه: يعتمدها أولياً أو يعيدها للتعديل، ويعدّلها، ويمكنه التعبئة أيضاً.',
 };
 const SECTIONS = [['ops', 'النظرة العامة والعمليات والخرائط'], ['monthly', 'التقرير الشهري'], ['rubble', 'إدارة الأنقاض'], ['projects', 'المشاريع']];
 
@@ -51,11 +51,11 @@ function AccessFields({ value, onChange, govs, surveys, entities }) {
             options={govs.map((g) => ({ value: g.code, label: g.name }))} />
         </div>
       )}
-      {v.role === 'reviewer' && (
+      {(v.role === 'reviewer' || v.role === 'collector') && (
         <label className="bf">
-          <span className="bf__label">الجهة <small>(مشرف جهة: يرى إجابات جهته فقط ويؤكدها، والاعتماد النهائي للوزارة)</small></span>
+          <span className="bf__label">الجهة <small>(اختياري: يرى إجابات هذه الجهة المنفذة فقط في استمارة الأنقاض)</small></span>
           <select className="q-input bf__input" value={v.entity || ''} onChange={(e) => set('entity', e.target.value)}>
-            <option value="">بلا جهة — مراجع من الوزارة يعتمد كل الإجابات</option>
+            <option value="">بلا جهة — كل الإجابات</option>
             {entities.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
           </select>
         </label>

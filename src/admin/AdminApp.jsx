@@ -171,7 +171,7 @@ function ProjectList({ projects, counts, onOpen, onCreate, onDelete }) {
 
 /* ---------------- محرر المشروع ---------------- */
 
-function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'build', reviewer = false, entityReviewer = false, onlySurveys = null }) {
+function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'build', reviewer = false, stage = 'admin', onlySurveys = null }) {
   const areas = useAreas(basemap);
   const [project, setProject] = useState(null);
   const [surveys, setSurveys] = useState([]);
@@ -449,11 +449,16 @@ function ProjectEditor({ projectId, basemap, onBack, onChanged, initialTab = 'bu
               responses={responses}
               survey={draft}
               areas={areas}
-              onReview={async (id, status) => { await store.reviewResponse(id, status); refreshResponses(); }}
+              onAction={async (id, action, note) => {
+                try { await store.reviewAction(id, action, note); } catch (e) { window.alert(e.message); }
+                refreshResponses();
+              }}
               onEdit={async (id, field, value) => { await store.editResponseAnswer(id, field, value); refreshResponses(); }}
-              onDelete={async (id) => { await store.deleteResponse(id); refreshResponses(); }}
-              onBulk={async (ids, status) => { await store.bulkReview(ids, status); refreshResponses(); }}
-              entityReviewer={entityReviewer}
+              onBulk={async (ids, action) => {
+                try { await store.bulkReview(ids, action); } catch (e) { window.alert(e.message); }
+                refreshResponses();
+              }}
+              stage={stage}
             />
           )}
 
@@ -533,7 +538,7 @@ export default function AdminApp({ basemap, me }) {
     const all = await store.listResponses();
     let surveys = await store.listSurveys();
     /* المراجع: الاستبيانات المسندة إليه ومشاريعها فقط (القاعدة تفرض ذلك أيضاً) */
-    if (me.role === 'reviewer') {
+    if (me.role === 'reviewer' || me.role === 'collector') {
       const mine = new Set(me.surveys || []);
       surveys = surveys.filter((x) => mine.has(x.id));
       const pids = new Set(surveys.map((x) => x.projectId));
@@ -555,16 +560,21 @@ export default function AdminApp({ basemap, me }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const reviewer = me.role === 'reviewer';
   const collector = me.role === 'collector';
-  const sections = collector ? [{ id: 'mine', label: 'استبياناتي' }, { id: 'me', label: 'حسابي' }] : [
-    { id: 'projects', label: reviewer ? 'الاستبيانات المسندة إليّ' : 'المشاريع' },
+  /* المراجعة: الأخصائي (collector) يعتمد أولياً، والمعتمد النهائي (reviewer) يعتمد نهائياً */
+  const reviewer = me.role === 'reviewer' || collector;
+  const stage = me.role === 'reviewer' ? 'final' : collector ? 'specialist' : 'admin';
+  const sections = collector ? [
+    { id: 'projects', label: 'المراجعة (أخصائي)' },
+    { id: 'mine', label: 'التعبئة' },
+    { id: 'me', label: 'حسابي' },
+  ] : [
+    { id: 'projects', label: me.role === 'reviewer' ? 'الاعتماد النهائي' : 'المشاريع' },
     ...(reviewer ? [] : [{ id: 'entities', label: 'الجهات العاملة' }]),
     ...(me.role === 'super_admin' || me.role === 'admin' ? [{ id: 'reports', label: 'التقارير' }, { id: 'screens', label: 'شاشات العرض' }] : []),
     ...(me.role === 'super_admin' ? [{ id: 'accounts', label: 'الحسابات' }] : []),
     { id: 'me', label: 'حسابي' },
   ];
-  useEffect(() => { if (collector) setSection('mine'); }, [collector]);
 
   return (
     <section className="shell admin">
@@ -590,7 +600,7 @@ export default function AdminApp({ basemap, me }) {
           basemap={basemap}
           initialTab={startTab}
           reviewer={reviewer}
-          entityReviewer={reviewer && Boolean(me.entity)}
+          stage={stage}
           onlySurveys={reviewer ? (me.surveys || []) : null}
           onBack={() => { setOpen(null); setStartTab('build'); refresh(); }}
           onChanged={refresh}

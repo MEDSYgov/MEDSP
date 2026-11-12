@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getPublicSurvey, unlockSurvey, createResponse, cacheSurvey, cachedSurvey, signIn, signOut, getMyRole } from './store';
+import { getPublicSurvey, unlockSurvey, createResponse, cacheSurvey, cachedSurvey, signIn, signOut, getMyRole, responseStatuses } from './store';
 import { hasStoredSession } from './supabase';
 import * as outbox from './outbox';
 import SurveyPage from '../survey/SurveyPage';
@@ -35,6 +35,58 @@ function Message({ icon, title, body, children }) {
 const send = (item) => createResponse(item.surveyId, item.answers, {
   password: item.password, source: 'link', meta: item.meta, clientId: item.clientId, token: item.token,
 });
+
+/*
+  ما أرسله هذا الجهاز: تُحفظ معرّفات الاستمارات (لا محتواها) لعرض حالتها لاحقاً:
+  بانتظار المراجعة، أُعيدت للتعديل (مع السبب)، معتمدة.
+*/
+const SENT = (sid) => `medsp-sent:${sid}`;
+function rememberSent(sid, clientId) {
+  try {
+    const list = JSON.parse(localStorage.getItem(SENT(sid)) || '[]');
+    list.unshift({ id: clientId, at: new Date().toISOString() });
+    localStorage.setItem(SENT(sid), JSON.stringify(list.slice(0, 200)));
+  } catch { /* */ }
+}
+const SENT_LABEL = { pending: 'بانتظار المراجعة', confirmed: 'بانتظار الاعتماد النهائي', approved: 'معتمدة ✓', returned: 'أُعيدت للتعديل', rejected: 'أُعيدت للتعديل', deleted: 'أُلغيت' };
+
+function SentList({ surveyId, online, tick }) {
+  const [list] = useState(() => { try { return JSON.parse(localStorage.getItem(SENT(surveyId)) || '[]'); } catch { return []; } });
+  const [st, setSt] = useState({});
+  const [open, setOpen] = useState(false);
+  const items = (() => { try { return JSON.parse(localStorage.getItem(SENT(surveyId)) || '[]'); } catch { return list; } })();
+  useEffect(() => {
+    if (!online || !items.length) return;
+    responseStatuses(items.map((x) => x.id)).then((rows) => setSt(Object.fromEntries(rows.map((r) => [r.clientId, r])))).catch(() => {});
+  }, [online, surveyId, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!items.length) return null;
+  const c = (k) => items.filter((x) => (st[x.id]?.status || 'queued') === k || (k === 'returned' && st[x.id]?.status === 'rejected')).length;
+  return (
+    <div className="sent">
+      <button type="button" className="sent__head" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <b>ما أرسلته من هذا الجهاز ({items.length})</b>
+        <span>
+          {c('approved') > 0 && <i className="is-ok">{c('approved')} معتمدة</i>}
+          {c('returned') > 0 && <i className="is-bad">{c('returned')} أُعيدت للتعديل</i>}
+        </span>
+      </button>
+      {open && (
+        <ul className="sent__list">
+          {items.map((x) => {
+            const r = st[x.id];
+            return (
+              <li key={x.id} className={`sent__row is-${r?.status || 'queued'}`}>
+                <time>{new Date(x.at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</time>
+                <span>{r ? SENT_LABEL[r.status] || r.status : online ? 'لم تصل بعد' : 'تظهر الحالة عند الاتصال'}</span>
+                {r?.note && <small>السبب: {r.note}</small>}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 /* رمز الرابط العام من عنوان الصفحة: #/s/<id>?k=<token> */
 const linkToken = () => new URLSearchParams((window.location.hash.split('?')[1]) || '').get('k') || null;
@@ -381,7 +433,7 @@ export default function FillPage({ surveyId }) {
           {online ? 'متصل' : 'بلا اتصال — تُحفظ الاستمارة على الجهاز'}
         </span>
       </div>
-      <div className="shell"><Outbox surveyId={surveyId} online={online} /></div>
+      <div className="shell"><Outbox surveyId={surveyId} online={online} /><SentList surveyId={surveyId} online={online} /></div>
       {sendError && <div className="shell"><p className="share__warn">{sendError}</p></div>}
       <SurveyPage
         definition={definition}
@@ -390,6 +442,7 @@ export default function FillPage({ surveyId }) {
         onSubmit={async (answers, timing) => {
           setSendError('');
           const clientId = outbox.newClientId();
+          rememberSent(surveyId, clientId);
           const meta = { ...timing, device: outbox.deviceLabel(), ...(state.publicLink ? { respondent } : {}) };
           try {
             await createResponse(surveyId, answers, { source: 'link', password, meta, clientId, token });

@@ -74,16 +74,51 @@ function exportCsv(rows, questions, areas, filename) {
 
 /* ---------------- لوحة المراجعة ---------------- */
 
+/*
+  الإجراءات المتاحة حسب دور المراجع وحالة الاستمارة (القاعدة تتحقق منها أيضاً):
+  الأخصائي: اعتماد أولي / إعادة للتعديل · المعتمد النهائي: اعتماد نهائي / رفض / تراجع
+  المدير: الكل + حذف واسترجاع
+*/
+function actionsFor(stage, r) {
+  const st = r.status === 'rejected' ? 'returned' : r.status;
+  const spec = stage === 'specialist' || stage === 'admin';
+  const fin = stage === 'final' || stage === 'admin';
+  if (r.deletedAt) return stage === 'admin' ? [{ key: 'restore', label: 'استرجاع', kind: 'ok' }] : [];
+  const out = [];
+  if (spec && (st === 'pending' || st === 'returned')) out.push({ key: 'confirm', label: 'اعتماد أولي', kind: 'ok' });
+  if (fin && st === 'confirmed') out.push({ key: 'approve', label: 'اعتماد نهائي', kind: 'ok' });
+  if (spec && (st === 'pending' || (stage === 'specialist' && st === 'confirmed'))) out.push({ key: 'return', label: 'إعادة للتعديل', kind: 'no', note: true, noteLabel: 'سبب الإعادة للتعديل' });
+  if (fin && st === 'confirmed') out.push({ key: 'reject', label: 'رفض وإعادة للأخصائي', kind: 'no', note: true, noteLabel: 'سبب الرفض (يصل إلى الأخصائي)' });
+  if (fin && st === 'approved') out.push({ key: 'unapprove', label: 'تراجع عن الاعتماد', kind: 'no', note: true, noteLabel: 'سبب التراجع (تخرج الاستمارة من المنصة فوراً)' });
+  if (stage === 'admin') out.push({ key: 'delete', label: 'حذف', kind: 'danger', note: true, noteLabel: 'سبب الحذف (يمكن استرجاعها من «محذوفة»)' });
+  return out;
+}
+function waitText(stage, r) {
+  const st = r.status === 'rejected' ? 'returned' : r.status;
+  if (stage === 'specialist') return st === 'confirmed' ? 'اعتمدتها أولياً — بانتظار المعتمد النهائي' : st === 'approved' ? 'معتمدة نهائياً ودخلت المنصة' : '';
+  if (stage === 'final') return st === 'pending' || st === 'returned' ? 'بانتظار الاعتماد الأولي من الأخصائي' : '';
+  return '';
+}
+
 const EDITABLE = new Set(['text', 'textarea', 'integer', 'decimal', 'range', 'date', 'time', 'datetime']);
 
 function ReviewDrawer({
-  response, questions, areas, position, total, onPrev, onNext, onClose, onReview, onEdit, onDelete, ok = 'approved', okLabel = 'اعتماد',
+  response, questions, areas, position, total, onPrev, onNext, onClose, onAction, onEdit, stage = 'admin',
 }) {
   const [editing, setEditing] = useState(null);
+  const [noteFor, setNoteFor] = useState(null);
+  const [noteText, setNoteText] = useState('');
+  const actions = actionsFor(stage, response);
+  const canEdit = !response.deletedAt && (stage === 'admin' || (stage === 'specialist' && ['pending', 'returned', 'rejected'].includes(response.status)));
+  const lastNote = [...(response.history || [])].reverse().find((h) => h.note && ['return', 'reject', 'unapprove', 'deleted'].includes(h.action));
+  const run = (a) => {
+    if (a.note) { setNoteFor(a); setNoteText(''); return; }
+    act(() => onAction(response.id, a.key));
+  };
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { setEditing(null); }, [response.id]);
+  useEffect(() => { setEditing(null); setNoteFor(null); }, [response.id]);
 
   const act = useCallback(async (fn) => {
     if (busy) return;
@@ -94,16 +129,16 @@ function ReviewDrawer({
   /* اختصارات لوحة المفاتيح — معطّلة أثناء الكتابة في حقل */
   useEffect(() => {
     const onKey = (e) => {
-      if (editing || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+      if (editing || noteFor || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
       if (e.key === 'Escape') onClose();
       else if (e.key === 'ArrowLeft') onNext();
       else if (e.key === 'ArrowRight') onPrev();
-      else if (e.key.toLowerCase() === 'a' && response.status !== ok) act(() => onReview(response.id, ok));
-      else if (e.key.toLowerCase() === 'r' && response.status !== 'rejected') act(() => onReview(response.id, 'rejected'));
+      else if (e.key.toLowerCase() === 'a') { const a = actions.find((x) => x.kind === 'ok'); if (a) run(a); }
+      else if (e.key.toLowerCase() === 'r') { const a = actions.find((x) => x.kind === 'no'); if (a) run(a); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [editing, response, onClose, onNext, onPrev, onReview, act]);
+  }, [editing, noteFor, response, onClose, onNext, onPrev, actions, act]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = (node) => act(async () => {
     const numeric = ['integer', 'decimal', 'range'].includes(node.type);
@@ -123,7 +158,7 @@ function ReviewDrawer({
             <span className="drawer__pos"><strong>{fmt(position)}</strong> من {fmt(total)}</span>
             <button type="button" className="bq__tool" onClick={onNext} disabled={position >= total} aria-label="التالية">←</button>
           </div>
-          <span className={`status status--${response.status}`}>{RESPONSE_STATUS[response.status]}</span>
+          <span className={`status status--${response.deletedAt ? 'deleted' : response.status}`}>{RESPONSE_STATUS[response.deletedAt ? 'deleted' : response.status]}</span>
           <button type="button" className="tpick__close" onClick={onClose} aria-label="إغلاق">✕</button>
         </header>
 
@@ -154,6 +189,13 @@ function ReviewDrawer({
           <span>{answered} من {questions.length} سؤالاً مُجاب</span>
           {response.edited && <span className="drawer__edited">عُدّلت بعد الإرسال</span>}
         </div>
+
+        {lastNote && (
+          <p className="drawer__note">
+            <b>{{ return: 'أُعيدت للتعديل', reject: 'رفضها المعتمد النهائي', unapprove: 'أُلغي اعتمادها', deleted: 'حُذفت' }[lastNote.action]}</b>
+            {' '}— {lastNote.by}: «{lastNote.note}»
+          </p>
+        )}
 
         <div className="drawer__body">
           {questions.map((node, i) => {
@@ -199,7 +241,7 @@ function ReviewDrawer({
                           </span>
                         )
                         : (shown || 'لم يُجب')}
-                    {EDITABLE.has(node.type) && (
+                    {canEdit && EDITABLE.has(node.type) && (
                       <button type="button" className="ans__editbtn"
                         onClick={() => { setEditing(node.name); setDraft(value ?? ''); }}>
                         تعديل
@@ -229,20 +271,30 @@ function ReviewDrawer({
         </div>
 
         <footer className="drawer__foot">
-          <button type="button" className="rv rv--ok" disabled={busy || response.status === ok || response.status === 'approved'}
-            onClick={() => act(() => onReview(response.id, ok))}>
-            <Icon name="check" />{okLabel}<kbd>A</kbd>
-          </button>
-          <button type="button" className="rv rv--no" disabled={busy || response.status === 'rejected'}
-            onClick={() => act(() => onReview(response.id, 'rejected'))}>
-            رفض<kbd>R</kbd>
-          </button>
-          <button type="button" className="q-btn q-btn--sm q-btn--danger drawer__del" disabled={busy}
-            onClick={() => act(async () => {
-              if (window.confirm('حذف هذه الاستمارة نهائياً؟ لا يمكن التراجع.')) await onDelete(response.id);
-            })}>
-            حذف
-          </button>
+          {noteFor ? (
+            <div className="drawer__notebox">
+              <label>
+                <span>{noteFor.noteLabel}</span>
+                <textarea className="q-input" rows={2} value={noteText} autoFocus
+                  placeholder="يظهر السبب لمن تُعاد إليه الاستمارة"
+                  onChange={(e) => setNoteText(e.target.value)} />
+              </label>
+              <div className="drawer__noteact">
+                <button type="button" className={`rv rv--${noteFor.kind === 'danger' ? 'no' : noteFor.kind}`} disabled={busy || !noteText.trim()}
+                  onClick={() => act(async () => { await onAction(response.id, noteFor.key, noteText.trim()); setNoteFor(null); })}>
+                  {noteFor.label}
+                </button>
+                <button type="button" className="q-btn q-btn--sm" onClick={() => setNoteFor(null)}>إلغاء</button>
+              </div>
+            </div>
+          ) : actions.length ? actions.map((a) => (
+            <button key={a.key} type="button" disabled={busy}
+              className={a.kind === 'ok' ? 'rv rv--ok' : a.kind === 'no' ? 'rv rv--no' : a.kind === 'danger' ? 'q-btn q-btn--sm q-btn--danger drawer__del' : 'q-btn q-btn--sm'}
+              onClick={() => run(a)}>
+              {a.kind === 'ok' && <Icon name="check" />}{a.label}
+              {a.kind === 'ok' && <kbd>A</kbd>}{a.kind === 'no' && <kbd>R</kbd>}
+            </button>
+          )) : <span className="drawer__wait">{waitText(stage, response)}</span>}
         </footer>
       </aside>
     </div>
@@ -252,20 +304,21 @@ function ReviewDrawer({
 /* ---------------- الشاشة ---------------- */
 
 const FILTERS = [
-  { key: 'pending', label: 'بانتظار المراجعة' },
-  { key: 'confirmed', label: 'مؤكدة من الجهة' },
+  { key: 'pending', label: 'بانتظار الأخصائي' },
+  { key: 'returned', label: 'أُعيدت للتعديل' },
+  { key: 'confirmed', label: 'بانتظار الاعتماد النهائي' },
   { key: 'approved', label: 'معتمدة' },
-  { key: 'rejected', label: 'مرفوضة' },
   { key: 'all', label: 'الكل' },
 ];
+const QUEUE = { specialist: 'pending', final: 'confirmed', admin: 'pending' };
+const statusKey = (r) => (r.deletedAt ? 'deleted' : r.status === 'rejected' ? 'returned' : r.status);
 
 export default function ResponsesTable({
-  responses, survey, areas, onReview, onEdit, onDelete, onBulk, entityReviewer = false,
+  responses: allResponses, survey, areas, onAction, onEdit, onBulk, stage = 'admin',
 }) {
-  /* مشرف الجهة «يؤكد»، والوزارة «تعتمد» */
-  const ok = entityReviewer ? 'confirmed' : 'approved';
-  const okLabel = entityReviewer ? 'تأكيد الجهة' : 'اعتماد';
-  const [filter, setFilter] = useState('pending');
+  const queue = QUEUE[stage] || 'pending';
+  const responses = allResponses;
+  const [filter, setFilter] = useState(queue);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(new Set());
   const [openId, setOpenId] = useState(null);
@@ -279,22 +332,23 @@ export default function ResponsesTable({
 
   const counts = useMemo(() => ({
     fast: responses.filter((r) => durationInfo(r).suspicious).length,
-    all: responses.length,
-    pending: responses.filter((r) => r.status === 'pending').length,
-    approved: responses.filter((r) => r.status === 'approved').length,
-    confirmed: responses.filter((r) => r.status === 'confirmed').length,
-    rejected: responses.filter((r) => r.status === 'rejected').length,
+    all: responses.filter((r) => !r.deletedAt).length,
+    pending: responses.filter((r) => statusKey(r) === 'pending').length,
+    returned: responses.filter((r) => statusKey(r) === 'returned').length,
+    approved: responses.filter((r) => statusKey(r) === 'approved').length,
+    confirmed: responses.filter((r) => statusKey(r) === 'confirmed').length,
+    deleted: responses.filter((r) => r.deletedAt).length,
   }), [responses]);
 
   /* إن لم يبق شيء منتظر، افتح على «الكل» بدل شاشة فارغة */
   useEffect(() => {
-    if (filter === 'pending' && counts.pending === 0 && counts.all > 0) setFilter('all');
-  }, [counts.pending, counts.all, filter]);
+    if (filter === queue && counts[queue] === 0 && counts.all > 0) setFilter('all');
+  }, [counts, queue, filter]);
 
   const rows = useMemo(() => {
-    let list = filter === 'all' ? responses
-      : filter === 'fast' ? responses.filter((r) => durationInfo(r).suspicious)
-        : responses.filter((r) => r.status === filter);
+    let list = filter === 'all' ? responses.filter((r) => !r.deletedAt)
+      : filter === 'fast' ? responses.filter((r) => !r.deletedAt && durationInfo(r).suspicious)
+        : responses.filter((r) => statusKey(r) === filter);
     const q = query.trim();
     if (q) {
       list = list.filter((r) => questions.some((node) => display(r.answers[node.name], node, areas).includes(q)));
@@ -311,12 +365,12 @@ export default function ResponsesTable({
   };
 
   /* بعد الحكم على استمارة: انتقل إلى التالية المنتظرة، وإلا أغلق */
-  const review = async (id, status) => {
-    const pendingAfter = responses.filter((r) => r.status === 'pending' && r.id !== id);
-    const pos = responses.findIndex((r) => r.id === id);
-    const nextPending = pendingAfter.find((r) => responses.indexOf(r) > pos) || pendingAfter[0];
-    await onReview(id, status);
-    if (filter === 'pending') setOpenId(nextPending ? nextPending.id : null);
+  const review = async (id, action, note) => {
+    const waiting = rows.filter((r) => r.id !== id);
+    const pos = rows.findIndex((r) => r.id === id);
+    const next = waiting.find((r) => rows.indexOf(r) > pos) || waiting[0];
+    await onAction(id, action, note);
+    if (filter !== 'all') setOpenId(next ? next.id : null);
   };
 
   const toggle = (id) => {
@@ -325,8 +379,8 @@ export default function ResponsesTable({
     setSelected(next);
   };
 
-  const runBulk = async (status) => {
-    await onBulk([...selected], status);
+  const runBulk = async (action) => {
+    await onBulk([...selected], action);
     setSelected(new Set());
   };
 
@@ -343,7 +397,7 @@ export default function ResponsesTable({
   return (
     <div className="results">
       <div className={`rsum${counts.fast ? ' rsum--5' : ''}`}>
-        {[...FILTERS, ...(counts.fast ? [{ key: 'fast', label: 'سريعة بشكل مريب' }] : [])].map((f) => (
+        {[...FILTERS, ...(stage === 'admin' && counts.deleted ? [{ key: 'deleted', label: 'محذوفة' }] : []), ...(counts.fast ? [{ key: 'fast', label: 'سريعة بشكل مريب' }] : [])].map((f) => (
           <button key={f.key} type="button"
             className={`rsum__card rsum__card--${f.key}${filter === f.key ? ' is-on' : ''}`}
             onClick={() => { setFilter(f.key); setSelected(new Set()); }}>
@@ -359,17 +413,17 @@ export default function ResponsesTable({
         {selected.size > 0 ? (
           <div className="rbar__bulk">
             <span>{fmt(selected.size)} محدّدة</span>
-            <button type="button" className="rv rv--ok rv--sm" onClick={() => runBulk(ok)}>{okLabel}</button>
-            <button type="button" className="rv rv--no rv--sm" onClick={() => runBulk('rejected')}>رفض</button>
+            {stage !== 'final' && <button type="button" className="rv rv--ok rv--sm" onClick={() => runBulk('confirm')}>اعتماد أولي</button>}
+            {stage !== 'specialist' && <button type="button" className="rv rv--ok rv--sm" onClick={() => runBulk('approve')}>اعتماد نهائي</button>}
             <button type="button" className="q-btn q-btn--sm" onClick={() => setSelected(new Set())}>إلغاء</button>
           </div>
         ) : (
           <div className="rbar__tools">
-            {counts.pending > 0 && (
+            {counts[queue] > 0 && (
               <button type="button" className="survey__navbtn survey__navbtn--primary"
                 onClick={() => {
-                  setFilter('pending');
-                  setOpenId(responses.find((r) => r.status === 'pending')?.id ?? null);
+                  setFilter(queue);
+                  setOpenId(responses.find((r) => statusKey(r) === queue)?.id ?? null);
                 }}>
                 ابدأ المراجعة
               </button>
@@ -419,7 +473,7 @@ export default function ResponsesTable({
                   <td className="results__check" onClick={(e) => e.stopPropagation()}>
                     <input type="checkbox" aria-label="تحديد" checked={selected.has(r.id)} onChange={() => toggle(r.id)} />
                   </td>
-                  <td><span className={`status status--${r.status}`}>{RESPONSE_STATUS[r.status]}</span></td>
+                  <td><span className={`status status--${statusKey(r)}`}>{RESPONSE_STATUS[statusKey(r)]}</span></td>
                   <td className="results__date">
                     {new Date(r.submittedAt).toLocaleDateString('en-GB')}
                     {r.meta?.submittedBy && <small className="rtable__by">{r.meta.submittedBy}</small>}
@@ -457,11 +511,9 @@ export default function ResponsesTable({
           onPrev={() => go(-1)}
           onNext={() => go(1)}
           onClose={() => setOpenId(null)}
-          onReview={review}
-          ok={ok}
-          okLabel={okLabel}
+          onAction={review}
+          stage={stage}
           onEdit={onEdit}
-          onDelete={async (id) => { await onDelete(id); setOpenId(null); }}
         />
       )}
     </div>

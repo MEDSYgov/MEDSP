@@ -1951,3 +1951,31 @@ a.pedit__publish { display: inline-flex; align-items: center; text-decoration: n
 .share__public { margin-top: 6px; padding: 14px 16px; border-radius: 14px; border: 1px dashed var(--edge-strong); background: var(--glass); }
 .share__pubactions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .rtable__by { display: block; font-size: 0.78rem; color: var(--ink-soft); }
+
+/* دورة الاعتماد */
+.status--returned { color: #e0705c; }
+.status--returned::before { background: #e0705c; }
+.status--confirmed::before { background: #4f8fdc; }
+.status--deleted { color: var(--ink-faint); }
+.status--deleted::before { background: var(--ink-faint); }
+.rsum__card--returned .rsum__n { color: #e0705c; }
+.rsum__card--confirmed .rsum__n { color: #4f8fdc; }
+.drawer__note { margin: 0 20px 12px; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(224, 112, 92, 0.45); background: rgba(224, 112, 92, 0.1); font-size: 0.9rem; line-height: 1.7; color: var(--ink); }
+.drawer__notebox { display: grid; gap: 8px; width: 100%; }
+.drawer__notebox label { display: grid; gap: 4px; font-size: 0.86rem; color: var(--ink-soft); }
+.drawer__noteact { display: flex; gap: 8px; align-items: center; }
+.drawer__wait { font-size: 0.88rem; color: var(--ink-soft); }
+
+/* ما أرسله الجهاز */
+.sent { margin: 8px 0; border: 1px solid var(--edge); border-radius: 14px; background: var(--glass); }
+.sent__head { width: 100%; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; padding: 10px 14px; border: 0; background: none; color: var(--ink); font: inherit; cursor: pointer; text-align: start; }
+.sent__head span { display: flex; gap: 8px; }
+.sent__head i { font-style: normal; font-size: 0.82rem; padding: 2px 8px; border-radius: 999px; }
+.sent__head i.is-ok { background: rgba(47, 158, 116, 0.18); color: #2f9e74; }
+.sent__head i.is-bad { background: rgba(224, 112, 92, 0.18); color: #e0705c; }
+.sent__list { list-style: none; margin: 0; padding: 0 14px 10px; display: grid; gap: 6px; }
+.sent__row { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; padding: 8px 0; border-top: 1px solid var(--edge); font-size: 0.88rem; }
+.sent__row time { color: var(--ink-soft); direction: ltr; }
+.sent__row small { grid-column: 1 / -1; color: #e0705c; }
+.sent__row.is-approved span { color: #2f9e74; font-weight: 700; }
+.sent__row.is-returned span, .sent__row.is-rejected span { color: #e0705c; font-weight: 700; }
