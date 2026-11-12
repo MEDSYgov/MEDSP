@@ -78,14 +78,15 @@ let flushing = null;
   يرسل كل ما في الصندوق بالترتيب. send(item) يُرجع وعداً.
   يُرجع { sent, failed, remaining }.
 */
-export function flush(send) {
+export function flush(send, only = null) {
   if (flushing) return flushing;
   flushing = (async () => {
     let sent = 0;
     let failed = 0;
     const items = await list();
     for (const item of items) {
-      if (item.rejected) continue;
+      if (only && item.clientId !== only) continue;
+      if (item.rejected && !only) continue;
       try {
         // eslint-disable-next-line no-await-in-loop
         await send(item);
@@ -94,6 +95,12 @@ export function flush(send) {
         sent += 1;
       } catch (err) {
         if (isNetworkError(err) || err?.auth) break; /* بلا شبكة أو بلا دخول — تبقى محفوظة حتى يُحلّ ذلك */
+        if (err?.retry) {
+          /* خطأ مؤقت في السيرفر: تبقى في الصادر بلا وسم «مرفوضة»، ويُعاد إرسالها في المرة القادمة */
+          // eslint-disable-next-line no-await-in-loop
+          await update({ ...item, attempts: item.attempts + 1, lastError: err.message });
+          continue;
+        }
         failed += 1;
         // eslint-disable-next-line no-await-in-loop
         await update({ ...item, attempts: item.attempts + 1, rejected: true, lastError: err.message });
@@ -104,6 +111,14 @@ export function flush(send) {
     return { sent, failed, remaining };
   })().finally(() => { flushing = null; });
   return flushing;
+}
+
+/* إعادة استمارة «مرفوضة» إلى الانتظار لتُرسل من جديد */
+export async function retry(clientId) {
+  const all = await list();
+  const item = all.find((i) => i.clientId === clientId);
+  if (item) await update({ ...item, rejected: false });
+  notify();
 }
 
 /* ---------- الاشتراك في التغييرات ---------- */
