@@ -37,6 +37,25 @@ const authStorage = {
   removeItem: (k) => { safe(() => localStorage.removeItem(k)); safe(() => sessionStorage.removeItem(k)); },
 };
 
+/*
+  هل على الجهاز دخول محفوظ (حتى لو انتهت صلاحيته القصيرة)؟
+  بلا إنترنت لا يمكن تجديد الجلسة، فلا نعتمد على getSession هنا:
+  يكفي وجود تصريح التجديد؛ التحقق الفعلي يجري في القاعدة عند الإرسال.
+*/
+export function hasStoredSession() {
+  for (const store of [() => localStorage, () => sessionStorage]) {
+    const st = safe(store);
+    if (!st) continue;
+    for (let i = 0; i < st.length; i += 1) {
+      const k = st.key(i);
+      if (!/^sb-.*-auth-token$/.test(k || '')) continue;
+      const v = safe(() => JSON.parse(st.getItem(k)));
+      if (v?.refresh_token || v?.currentSession?.refresh_token) return true;
+    }
+  }
+  return false;
+}
+
 export const supabase = createClient(URL, KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storage: authStorage },
 });

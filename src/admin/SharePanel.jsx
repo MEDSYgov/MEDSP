@@ -8,7 +8,7 @@ import Icon from '../components/Icon';
   يفتح صفحة تعبئة مستقلة، بلا وصول إلى أي شيء إداري.
 */
 
-export default function SharePanel({ survey, onUpdate }) {
+export default function SharePanel({ survey, onUpdate, onPublicLink }) {
   const [copied, setCopied] = useState(false);
   const [pw, setPw] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -42,6 +42,19 @@ export default function SharePanel({ survey, onUpdate }) {
     setPw('');
   };
   const clearPw = () => run({ open: survey.open, closesAt: survey.closesAt || '', password: '' });
+
+  const publicUrl = survey.publicToken ? `${url}?k=${survey.publicToken}` : '';
+  const [copiedPub, setCopiedPub] = useState(false);
+  const copyPub = async () => {
+    try { await navigator.clipboard.writeText(publicUrl); } catch { document.getElementById('share-public')?.select(); }
+    setCopiedPub(true); setTimeout(() => setCopiedPub(false), 1800);
+  };
+  const pub = async (enable) => {
+    if (enable && survey.publicToken && !window.confirm('توليد رابط جديد يُبطل الرابط الحالي فوراً، ولن يعمل عند من أرسلته إليهم. متابعة؟')) return;
+    if (!enable && !window.confirm('إلغاء الرابط العام؟ لن يعمل عند أحد بعد الآن.')) return;
+    setBusy(true);
+    try { await onPublicLink?.(enable); } finally { setBusy(false); }
+  };
 
   const expired = survey.closesAt && new Date(survey.closesAt) < new Date();
 
@@ -90,6 +103,40 @@ export default function SharePanel({ survey, onUpdate }) {
         <span className="bf__hint">
           أرسل هذا الرابط للباحثين. يفتح صفحة التعبئة وحدها، بلا وصول لأي بيانات أخرى.
         </span>
+      </div>
+
+      <div className="share__link share__public">
+        <span className="bf__label">
+          <Icon name="link" className="share__labelicon" />
+          رابط عام بلا تسجيل دخول (بالاسم والكنية)
+        </span>
+        {publicUrl ? (
+          <>
+            <div className="share__row">
+              <input id="share-public" className="q-input share__url" value={publicUrl} readOnly dir="ltr"
+                onFocus={(e) => e.target.select()} />
+              <button type="button" className={`share__copy${copiedPub ? ' is-done' : ''}`} onClick={copyPub}>
+                <Icon name={copiedPub ? 'check' : 'copy'} />
+                {copiedPub ? 'نُسخ' : 'نسخ'}
+              </button>
+            </div>
+            <span className="bf__hint">
+              للمستبينين في الميدان: يفتح الاستمارة دون حساب، ويطلب الاسم والكنية مرة واحدة على الجهاز، ويعمل بلا إنترنت.
+              إن تسرّب الرابط ولّد رابطاً جديداً، فيتوقف القديم فوراً.
+            </span>
+            <div className="share__pubactions">
+              <button type="button" className="q-btn q-btn--ghost" disabled={busy} onClick={() => pub(true)}>توليد رابط جديد</button>
+              <button type="button" className="q-btn q-btn--danger" disabled={busy} onClick={() => pub(false)}>إلغاء الرابط العام</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <span className="bf__hint">لا يوجد رابط عام لهذا الاستبيان. ولّده ليعبّئ المستبينون في الميدان دون حسابات، بأسمائهم.</span>
+            <div className="share__pubactions">
+              <button type="button" className="survey__navbtn survey__navbtn--primary" disabled={busy || !onPublicLink} onClick={() => pub(true)}>توليد رابط عام</button>
+            </div>
+          </>
+        )}
       </div>
 
       <label className={`share__login${survey.requiresLogin ? ' is-on' : ''}`}>

@@ -200,40 +200,73 @@ function DateField({ node, value, onChange, onBlur, invalid }) {
 /* ---------------- مرفقات ---------------- */
 
 /*
-  الصور تُخزَّن محلياً كـ dataURL حتى المزامنة.
-  نضغط الصورة قبل الحفظ — صورة هاتف حديث قد تتجاوز 5 ميغابايت،
-  وهذا يملأ تخزين المتصفح ويستحيل رفعه عبر شبكة ميدانية ضعيفة.
+  الصور تُخزَّن محلياً كـ dataURL حتى المزامنة، وتُرسل داخل الإجابة.
+  استمارة واحدة قد تحمل أكثر من 20 صورة، فنصغّر كل صورة على الهاتف قبل حفظها:
+  الضلع الأطول 1280 بكسل، وJPEG بجودة تُخفَّض تدريجياً حتى ~250 كيلوبايت.
+  تُقبل أي صيغة وأي حجم: HEIC/HEIF (آيفون وبعض هواتف أندرويد) تُحوَّل إلى JPEG
+  بمكتبة لا تُحمَّل إلا عند الحاجة، وما يفتحه المتصفح يُصغَّر مباشرة.
 */
-async function compressImage(file, maxDim = 1600, quality = 0.72) {
-  const dataUrl = await new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result);
-    r.onerror = () => rej(new Error('تعذّرت قراءة الملف'));
-    r.readAsDataURL(file);
-  });
+const MAX_DIM = 1280;
+const TARGET_BYTES = 250 * 1024;
+const isHeic = (f) => /heic|heif/i.test(f.type) || /\.(heic|heif)$/i.test(f.name || '');
 
-  const img = await new Promise((res, rej) => {
-    const im = new Image();
-    im.onload = () => res(im);
-    im.onerror = () => rej(new Error('تعذّر فتح الصورة'));
-    im.src = dataUrl;
-  });
+async function decode(file) {
+  /* createImageBitmap أخف على ذاكرة الهواتف القديمة ويحترم اتجاه الصورة */
+  if (typeof createImageBitmap === 'function') {
+    try { return await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch { /* نجرّب الطريقة الأخرى */ }
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    return await new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = () => rej(new Error('decode'));
+      im.src = url;
+    });
+  } finally { setTimeout(() => URL.revokeObjectURL(url), 0); }
+}
 
-  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-  const w = Math.round(img.width * scale);
-  const h = Math.round(img.height * scale);
+async function toDecodable(file) {
+  try { return await decode(file); } catch (e) {
+    if (!isHeic(file) && file.type && !/octet-stream/.test(file.type)) throw e;
+    /* صيغة لا يفتحها المتصفح (غالباً HEIC): نحوّلها إلى JPEG أولاً */
+    const { default: heic2any } = await import('heic2any');
+    const out = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 });
+    return decode(Array.isArray(out) ? out[0] : out);
+  }
+}
 
+async function compressImage(file) {
+  let img;
+  try { img = await toDecodable(file); } catch {
+    throw new Error('تعذّر فتح هذه الصورة. التقطها بكاميرا الهاتف مباشرة، أو اخترها بصيغة JPG أو PNG.');
+  }
+  const iw = img.width; const ih = img.height;
+  const scale = Math.min(1, MAX_DIM / Math.max(iw, ih));
+  const w = Math.max(1, Math.round(iw * scale));
+  const h = Math.max(1, Math.round(ih * scale));
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
-  canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+  img.close?.();
 
+  let quality = 0.72;
+  let dataUrl = canvas.toDataURL('image/jpeg', quality);
+  while (dataUrl.length * 0.75 > TARGET_BYTES && quality > 0.42) {
+    quality -= 0.1;
+    dataUrl = canvas.toDataURL('image/jpeg', quality);
+  }
+  canvas.width = 0; canvas.height = 0;
   return {
-    dataUrl: canvas.toDataURL('image/jpeg', quality),
+    dataUrl,
     width: w,
     height: h,
     originalSize: file.size,
-    name: file.name,
+    name: (file.name || 'photo').replace(/\.(heic|heif|png|webp|gif|bmp|tiff?)$/i, '.jpg'),
   };
 }
 
@@ -262,7 +295,7 @@ function ImageField({ node, value, onChange }) {
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.heic,.heif"
         capture={node.capture ? 'environment' : undefined}
         className="q-image__input"
         onChange={pick}

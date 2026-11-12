@@ -9,7 +9,7 @@ import RubbleGallery from './RubbleGallery';
 import RubbleAtlas from './RubbleAtlas';
 import DirectorateWorks from './DirectorateWorks';
 import RubbleMapView from './RubbleMapView';
-import { fromResponse } from './RubbleTransfer';
+import { fromResponse, loadAreaPoints } from './RubbleTransfer';
 import { Entities, Dumps, isEntityRegistry, entitiesFromProject } from './RubbleRegistry';
 import { listPublishedProjects, listEntities, rubbleTransferFeed } from './store';
 import { getData } from '../data/api';
@@ -212,6 +212,7 @@ export default function RubbleHub({ basemap, initial }) {
     Promise.all([
       getData('rubble-transfer').catch(() => ({ surveys: [] })),
       rubbleTransferFeed().catch(() => []),
+      loadAreaPoints(),
     ]).then(([d, live]) => {
       const all = [...(d.surveys || []), ...live.map(fromResponse)];
       const ph = d.phases || [];
