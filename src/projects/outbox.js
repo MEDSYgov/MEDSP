@@ -78,14 +78,15 @@ let flushing = null;
   يرسل كل ما في الصندوق بالترتيب. send(item) يُرجع وعداً.
   يُرجع { sent, failed, remaining }.
 */
-export function flush(send) {
+export function flush(send, only = null) {
   if (flushing) return flushing;
   flushing = (async () => {
     let sent = 0;
     let failed = 0;
     const items = await list();
     for (const item of items) {
-      if (item.rejected) continue;
+      if (only && item.clientId !== only) continue;
+      if (item.rejected && !only) continue;
       try {
         // eslint-disable-next-line no-await-in-loop
         await send(item);
