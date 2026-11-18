@@ -90,7 +90,7 @@ function actionsFor(stage, r) {
   if (spec && (st === 'pending' || (stage === 'specialist' && st === 'confirmed'))) out.push({ key: 'return', label: 'إعادة للتعديل', kind: 'no', note: true, noteLabel: 'سبب الإعادة للتعديل' });
   if (fin && st === 'confirmed') out.push({ key: 'reject', label: 'رفض وإعادة للأخصائي', kind: 'no', note: true, noteLabel: 'سبب الرفض (يصل إلى الأخصائي)' });
   if (fin && st === 'approved') out.push({ key: 'unapprove', label: 'تراجع عن الاعتماد', kind: 'no', note: true, noteLabel: 'سبب التراجع (تخرج الاستمارة من المنصة فوراً)' });
-  if (stage === 'admin') out.push({ key: 'delete', label: 'حذف', kind: 'danger', note: true, noteLabel: 'سبب الحذف (يمكن استرجاعها من «محذوفة»)' });
+  if (stage === 'admin' || stage === 'final') out.push({ key: 'delete', label: 'حذف', kind: 'danger', note: true, noteLabel: stage === 'admin' ? 'سبب الحذف (يمكن استرجاعها من «محذوفة»)' : 'سبب الحذف (يستطيع المدير استرجاعها)' });
   return out;
 }
 function waitText(stage, r) {
