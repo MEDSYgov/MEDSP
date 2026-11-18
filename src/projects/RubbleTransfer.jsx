@@ -798,7 +798,8 @@ export function fromResponse(r, i) {
     ...((Number(a.rt_point?.lat) && Number(a.rt_point?.lng))
       ? { lat: Number(a.rt_point.lat), lon: Number(a.rt_point.lng) }
       : (() => { const p = approxPoint(a.rt_gov); return p ? { lat: p[0], lon: p[1], approx: true } : { lat: 0, lon: 0 }; })()),
-    vol: Number(a.rt_volume) || 0, dump: a.rt_dump || '', dist: a.rt_distance_other ? `${a.rt_distance_other} كم` : (a.rt_distance || ''),
+    vol: Number(a.rt_volume) || 0, dump: a.rt_dump || '',
+    ...(() => { const d = a.rt_dump_point || a.rt_road_point; return Number(d?.lat) && Number(d?.lng) ? { dumpLat: Number(d.lat), dumpLon: Number(d.lng) } : {}; })(), dist: a.rt_distance_other ? `${a.rt_distance_other} كم` : (a.rt_distance || ''),
     hours: Number(a.rt_hours) || null, fam: Number(a.rt_families) || null, photos: [],
     hasPhotos: Boolean(r.photos),
     /* بيانات التشغيل والإنتاجية (أُضيفت للاستمارة الرسمية) */
